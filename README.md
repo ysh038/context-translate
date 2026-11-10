@@ -1,9 +1,9 @@
-# Claude 툴팁 번역
+# Context Translate
 
-웹페이지에서 **단어에 마우스를 올리거나 문장을 드래그하면**, Claude가 앞뒤 문맥을 보고 알맞은 뜻으로 번역해 툴팁으로 보여주는 Chrome 확장입니다.
-API 키 없이 **본인의 Claude Code 구독(`claude -p`)** 으로 동작합니다.
+웹페이지에서 **단어에 마우스를 올리거나 문장을 드래그하면**, 앞뒤 문맥을 보고 알맞은 뜻으로 번역해 툴팁으로 보여주는 Chrome 확장입니다.
+번역은 내 컴퓨터에 설치된 **Claude Code(`claude -p`)** 가 합니다. API 키 없이 본인 구독으로 동작합니다.
 
-> A Chrome extension that translates the word under your cursor (or your selection) in context, using your own Claude Code subscription via `claude -p`. macOS only. UI is in Korean.
+> A Chrome extension that translates the word under your cursor (or your selection) in context. Translation runs through your own locally installed Claude Code (`claude -p`) subscription. macOS only. UI is in Korean.
 
 | 마우스 오버 — 문맥에 맞는 뜻 | 드래그 — 자연스러운 번역 |
 |---|---|
@@ -31,8 +31,8 @@ API 키 없이 **본인의 Claude Code 구독(`claude -p`)** 으로 동작합니
 ## 설치
 
 ```bash
-git clone https://github.com/ysh038/claude-tooltip-translate.git
-cd claude-tooltip-translate
+git clone https://github.com/ysh038/context-translate.git
+cd context-translate
 npm run setup
 ```
 

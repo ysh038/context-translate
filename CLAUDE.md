@@ -1,4 +1,4 @@
-# Claude 툴팁 번역 — 프로젝트 안내 (Claude Code용)
+# Context Translate — 프로젝트 안내 (Claude Code용)
 
 웹페이지에서 **단어에 마우스를 올리면(hover)** 또는 **드래그하면** LLM으로 문맥에 맞게 번역해 툴팁으로 보여주는 Chrome 확장(MV3).
 현재는 **개인용**이 목표이고, 써보고 괜찮으면 **상업용(웹 스토어) 버전**을 같은 코드베이스에서 별도 빌드로 낸다.
@@ -20,7 +20,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
 ```
 - **확장 로드는 루트가 아니라 `dist/personal`** (`npm run build:personal`, 개발 중엔 `npm run dev`로 watch)
 - **설치 = `npm run setup` 하나** (`scripts/setup.mjs`): macOS·Node 18+·claude 확인 → 개인용 빌드 → host 등록 → `dist/personal` 경로를 클립보드에 복사하고 확장 관리 페이지 열기. 업데이트도 `git pull && npm run setup`. "개발자 모드 + 압축해제된 확장 로드" 한 번은 Chrome 정책상 못 없앰
-- **GitHub 공개 저장소**: https://github.com/ysh038/claude-tooltip-translate (MIT, 2026-11-06 공개). README는 사용자용(설치·사용법·문제 해결·약관 주의), 스크린샷은 `docs/images/`
+- **GitHub 공개 저장소**: https://github.com/ysh038/context-translate (MIT, 2026-11-06 공개, 예전 이름 claude-tooltip-translate). README는 사용자용(설치·사용법·문제 해결·약관 주의), 스크린샷은 `docs/images/`
   - 배포 관련 결정: claude -p 방식은 소스만 공개(각자 본인 구독·본인 판단, README에 약관 주의 명시). 웹 스토어 배포는 store 에디션으로만 (Chrome 내장 번역 기본값 + 본인 API 키 — docs/PLAN.md 3단계)
 - 빌드: `src/*.js`를 esbuild로 번들. background/options/popup은 ESM, content는 IIFE. `__EDITION__`은 define으로 치환, `edition:providers`는 에디션 providers만 import하는 가상 모듈 → store 번들엔 claude-cli 코드가 물리적으로 없음
 - 에디션 manifest = `src/manifest.json` + `editions/<이름>.json`의 `manifest`(permissions는 합집합) + `package.json` version
@@ -58,6 +58,8 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
 - **실제 Anthropic API 키로는 아직 테스트 안 함** (claude -p는 임시 프로필 + 실제 claude로 확인함)
 
 ## 확정된 결정
+0. **이름 = Context Translate** (2026-11-10, 예전 "Claude 툴팁 번역"). Anthropic 상표(Claude/Claude Code)를 제품·저장소 이름에 쓰지 않기 위해 변경. "Claude Code로 동작한다"는 설명문에만 씀
+   - 내부 식별자는 그대로: native host `dev.claude_tooltip_translate.cli`, 설치·로그 폴더 `claude-tooltip-translate` (바꾸면 기존 사용자 재설치·로그 경로 변경 필요)
 1. **개인용 먼저, 상업용은 투트랙.** 개인용 2~4주 사용 후 상업 버전 여부 결정
 2. **번역 엔진을 교체 가능한 구조(provider)로 리팩터링**: `chrome-builtin`, `claude-cli`, `anthropic-api` (+ 상업용에서 openai, gemini)
 3. **에디션은 브랜치가 아니라 빌드 설정으로 구분**: `build:personal` / `build:store`

@@ -51,7 +51,7 @@ class Worker {
     this.proc = spawn(pool.claudeBin, claudeArgs(job), {
       cwd: pool.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'claude-tooltip-translate' }
+      env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'context-translate' }
     });
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', (d) => this.onData(d));

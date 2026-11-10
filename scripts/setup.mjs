@@ -33,7 +33,7 @@ function findClaude() {
     .find((p) => fs.existsSync(p));
 }
 
-console.log('Claude 툴팁 번역 — 개인용 설치');
+console.log('Context Translate — 개인용 설치');
 
 step('필요한 것 확인');
 if (process.platform !== 'darwin') fail('지금은 macOS만 지원합니다.');

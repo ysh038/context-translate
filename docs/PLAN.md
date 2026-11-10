@@ -2,7 +2,7 @@
 
 ## 목표 구조
 ```
-claude-tooltip-translate/
+context-translate/
 ├─ src/                  확장 진입점(background/content/options/popup) + 정적 파일
 ├─ core/                 공통: 설정, 프롬프트, 캐시, provider 인터페이스, 엔진 선택
 ├─ providers/

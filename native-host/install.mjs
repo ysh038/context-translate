@@ -37,7 +37,7 @@ const BROWSERS = [
 export function hostManifest({ name, runPath, extId }) {
   return {
     name,
-    description: 'Claude 툴팁 번역 — claude -p 중계 (개인용)',
+    description: 'Context Translate — claude -p 중계 (개인용)',
     path: runPath,
     type: 'stdio',
     allowed_origins: [`chrome-extension://${extId}/`]

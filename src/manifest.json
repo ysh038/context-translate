@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Claude 툴팁 번역",
+  "name": "Context Translate",
   "version": "0.0.0",
   "description": "단어에 마우스를 올리거나 드래그하면 문맥에 맞게 번역합니다.",
   "permissions": [
