@@ -2,31 +2,31 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claude 툴팁 번역 · 설정</title>
 <link rel="stylesheet" href="ui.css">
 </head>
 <body class="options">
 <main>
   <header>
-    <img src="icons/icon48.png" alt="" width="32" height="32">
+    <img src="icons/icon48.png" alt="" width="40" height="40">
     <div>
       <h1>Claude 툴팁 번역</h1>
-      <p class="muted">설정은 바뀌는 즉시 저장됩니다.</p>
+      <p class="muted">바꾸면 바로 저장돼요</p>
     </div>
-    <span id="saved" class="saved" hidden>저장됨</span>
   </header>
 
   <section>
     <h2>번역 엔진</h2>
-    <p id="engineSingle" class="row" hidden><b id="engineName"></b> <small id="engineStatus" class="muted"></small></p>
+    <div id="engineSingle" class="item" hidden><b id="engineName"></b> <small id="engineStatus"></small></div>
     <div id="engineMulti" class="grid2">
-      <label class="row col"><span>① 마우스 오버</span>
+      <label class="field"><span>마우스 오버</span>
         <select id="hoverEngine"></select>
-        <small id="hoverEngineStatus" class="muted"></small>
+        <small id="hoverEngineStatus"></small>
       </label>
-      <label class="row col"><span>② 드래그(선택)</span>
+      <label class="field"><span>드래그(선택)</span>
         <select id="selectionEngine"></select>
-        <small id="selectionEngineStatus" class="muted"></small>
+        <small id="selectionEngineStatus"></small>
       </label>
     </div>
   </section>
@@ -36,16 +36,16 @@
 
   <section data-provider="anthropic-api">
     <h2>Claude API</h2>
-    <p class="muted small">API 키는 이 브라우저에만 저장됩니다.</p>
-    <label class="row col">
-      <span>Claude API 키</span>
+    <p class="desc">API 키는 이 브라우저에만 저장돼요.</p>
+    <label class="field">
+      <span>API 키</span>
       <div class="inline">
         <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
-        <button id="toggleKey" type="button" class="ghost">보기</button>
+        <button id="toggleKey" type="button" class="weak">보기</button>
       </div>
     </label>
     <div class="inline">
-      <button id="loadModels" type="button" class="ghost">연결 테스트</button>
+      <button id="loadModels" type="button" class="weak">연결 테스트</button>
       <small id="keyStatus" class="muted"></small>
     </div>
     <div data-models-slot="anthropic-api"></div>
@@ -54,16 +54,17 @@
   <section>
     <h2>언어</h2>
     <div class="grid2">
-      <label class="row col"><span>번역할 언어</span><select id="targetLang"></select></label>
-      <label class="row col"><span>이미 그 언어일 때 대신 번역할 언어</span><select id="fallbackLang"></select></label>
+      <label class="field"><span>번역할 언어</span><select id="targetLang"></select></label>
+      <label class="field"><span>이미 그 언어라면 대신</span><select id="fallbackLang"></select></label>
     </div>
+    <p class="desc">원문 언어는 자동으로 알아내요. 번역할 언어는 툴바 팝업에서도 바꿀 수 있어요.</p>
   </section>
 
   <section>
-    <h2>① 마우스 오버 번역</h2>
-    <label class="row switch"><input id="hoverEnabled" type="checkbox"><span>사용 <small class="muted">(단축키 Alt+Shift+H로 켜기/끄기)</small></span></label>
+    <h2>마우스 오버 번역</h2>
+    <label class="item switch"><span>사용하기 <small class="muted">Alt+Shift+H로 켜고 끌 수 있어요</small></span><input id="hoverEnabled" type="checkbox"></label>
     <div class="grid2">
-      <label class="row col"><span>트리거</span>
+      <label class="field"><span>언제 번역할까요?</span>
         <select id="hoverModifier">
           <option value="none">마우스를 올리고 잠시 멈추면</option>
           <option value="alt">Alt(⌥) 누른 채로 올리면</option>
@@ -72,48 +73,50 @@
           <option value="meta">⌘ / Win 누른 채로 올리면</option>
         </select>
       </label>
-      <label class="row col"><span>대기 시간 <b id="hoverDelayVal"></b> <small class="muted">(멈춘 뒤 번역 시작까지)</small></span>
+      <label class="field"><span>기다리는 시간 <b id="hoverDelayVal" class="accent"></b></span>
         <input id="hoverDelay" type="range" min="150" max="1500" step="50">
+        <small class="muted">마우스를 멈춘 뒤 번역을 시작하기까지</small>
       </label>
     </div>
-    <label class="row switch"><input id="hoverSkipTarget" type="checkbox"><span>번역할 언어로 된 단어(예: 한글)는 무시</span></label>
-    <label class="row switch"><input id="showAlternatives" type="checkbox"><span>문맥상 뜻 외에 다른 뜻도 함께 표시 <small class="muted">(끄면 조금 더 빠름)</small></span></label>
+    <label class="item switch"><span>번역할 언어로 된 단어는 건너뛰기 <small class="muted">예: 한국어로 번역 중이면 한글 단어</small></span><input id="hoverSkipTarget" type="checkbox"></label>
+    <label class="item switch"><span>다른 뜻도 함께 보기 <small class="muted">끄면 조금 더 빨라요</small></span><input id="showAlternatives" type="checkbox"></label>
   </section>
 
   <section>
-    <h2>② 드래그(선택) 번역</h2>
-    <label class="row switch"><input id="selectionEnabled" type="checkbox"><span>사용</span></label>
-    <label class="row col"><span>동작</span>
+    <h2>드래그 번역</h2>
+    <label class="item switch"><span>사용하기</span><input id="selectionEnabled" type="checkbox"></label>
+    <label class="field"><span>드래그하면</span>
       <select id="selectionMode">
-        <option value="auto">드래그하면 바로 번역</option>
-        <option value="button">드래그 후 [번역] 버튼을 눌러야 번역</option>
+        <option value="auto">바로 번역</option>
+        <option value="button">[번역] 버튼을 눌러야 번역</option>
       </select>
     </label>
   </section>
 
   <section>
-    <h2>문맥 반영 (의역 품질 ↔ 속도)</h2>
-    <label class="row col"><span>앞뒤 문맥을 얼마나 함께 보낼지</span>
+    <h2>문맥 반영</h2>
+    <label class="field"><span>앞뒤 문맥을 얼마나 함께 보낼까요?</span>
       <select id="contextMode">
         <option value="none">보내지 않음 — 가장 빠름, 다의어 오역 가능</option>
         <option value="sentence">해당 문장 — 권장 (속도 차이 거의 없음)</option>
         <option value="paragraph">앞뒤 ±350자 — 문맥 최대, 약간 느려질 수 있음</option>
       </select>
     </label>
-    <p class="muted small">문맥은 입력 토큰으로만 들어가서 응답 속도에 미치는 영향이 작습니다. 속도는 주로 모델과 출력 길이에 좌우됩니다.</p>
+    <p class="desc">문맥은 입력으로만 들어가서 속도에 주는 영향이 작아요. 속도는 주로 모델과 번역 결과 길이에 달려 있어요.</p>
   </section>
 
   <section>
-    <h2>테스트</h2>
+    <h2>번역해 보기</h2>
     <textarea id="testText" rows="2">She sat on the bank of the river and watched the boats drift by.</textarea>
-    <p class="muted small">드래그(선택) 엔진으로 번역합니다.</p>
     <div class="inline">
       <button id="runTest" type="button">번역해 보기</button>
       <small id="testMeta" class="muted"></small>
     </div>
     <pre id="testOut"></pre>
+    <p class="desc">드래그 번역 엔진으로 번역해요.</p>
   </section>
 </main>
+<div id="saved" class="toast" hidden>저장했어요</div>
 <script type="module" src="options.js"></script>
 </body>
 </html>

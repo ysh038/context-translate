@@ -272,6 +272,22 @@ async function runSuite(edition) {
     const r = lastReq();
     check('next translation uses the new model', !m1.hidden && m1.body.startsWith('강둑') && calls() === n3 + 1 && (cli ? r.model === 'sonnet' : r.model === sonnet && r.thinking?.type === 'between_tools'), JSON.stringify({ model: r.model, thinking: r.thinking }));
     await moveAway();
+
+    // 툴바 팝업: 번역할 언어 바꾸기 → 저장·설정 페이지 반영, 다음 요청이 새 언어로 (캐시 X), 시스템 프롬프트는 언어와 무관
+    const langOpts = await pp.$$eval('#targetLang option', (os) => os.map((o) => o.value));
+    check('popup lists target languages, current one selected', langOpts.length >= 20 && langOpts.includes('ja') && (await pp.inputValue('#targetLang')) === 'ko', JSON.stringify(langOpts));
+    const sysBefore = cli ? null : JSON.stringify(lastReq().system);
+    await pp.selectOption('#targetLang', 'ja'); await pp.waitForTimeout(500);
+    const tl = await sw.evaluate(() => chrome.storage.local.get('targetLang'));
+    check('popup language change saves and options page follows', tl.targetLang === 'ja' && (await op.inputValue('#targetLang')) === 'ja', JSON.stringify(tl));
+    await page.bringToFront();
+    const n4 = calls();
+    await hoverBank(1500);
+    check('next translation asks for the new language', calls() === n4 + 1 && lastContent().includes('Answer in: Japanese'), lastContent().slice(-120));
+    if (!cli) check('system prompt does not depend on the language', JSON.stringify(lastReq().system) === sysBefore && !sysBefore.includes('Japanese'));
+    await moveAway();
+    await sw.evaluate(() => chrome.storage.local.set({ targetLang: 'ko' }));
+
     if (!cli) {
       await sw.evaluate(() => chrome.storage.local.set({ model: 'claude-opus-5-5' }));
       await dragP1();

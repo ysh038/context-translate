@@ -23,7 +23,11 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick } from '../core/settings.j
     ja: /[぀-ヿ]/,
     'zh-CN': /[一-鿿]/,
     'zh-TW': /[一-鿿]/,
-    ru: /[Ѐ-ӿ]/
+    ru: /[Ѐ-ӿ]/,
+    uk: /[Ѐ-ӿ]/,
+    th: /[฀-๿]/,
+    hi: /[ऀ-ॿ]/,
+    ar: /[؀-ۿ]/
   };
 
   // 드래그 번역 최대 길이. 넘으면 안내 표시 (예전엔 5000자 넘으면 조용히 무시 → "아예 안 됨"처럼 보였음)

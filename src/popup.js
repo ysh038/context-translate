@@ -61,8 +61,7 @@ async function renderStatus(s) {
     st.className = 'small err';
   } else {
     const [h, sel] = engines.map((p) => p.describe?.(s) || p.label);
-    const to = `→ ${(LANGS[s.targetLang] || {}).label || s.targetLang}`;
-    st.textContent = h === sel ? `${h} · ${to}` : `오버 ${h} · 드래그 ${sel} · ${to}`;
+    st.textContent = h === sel ? h : `오버 ${h} · 드래그 ${sel}`;
     st.className = 'small muted';
   }
 }
@@ -72,12 +71,26 @@ function render(s) {
   renderStatus(s);
 }
 
+// 번역할 언어: 저장값이 목록에 없으면(예전 코드 등) 끝에 붙여 보여줌
+function fillLangs(s) {
+  const sel = $('targetLang');
+  sel.textContent = '';
+  for (const [code, v] of Object.entries(LANGS)) sel.add(new Option(v.label, code));
+  if (!LANGS[s.targetLang]) sel.add(new Option(s.targetLang, s.targetLang));
+  sel.value = s.targetLang;
+  sel.addEventListener('change', async () => {
+    s.targetLang = sel.value;
+    await chrome.storage.local.set({ targetLang: sel.value });
+  });
+}
+
 (async () => {
   const s = await chrome.storage.local.get(DEFAULTS);
   for (const id of ['hoverEnabled', 'selectionEnabled']) {
     $(id).checked = s[id];
     $(id).addEventListener('change', () => chrome.storage.local.set({ [id]: $(id).checked }));
   }
+  fillLangs(s);
   render(s);
 })();
 

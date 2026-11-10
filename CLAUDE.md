@@ -38,6 +38,8 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
 - 모델 선택: provider가 `models: { key, choices: [{value,label,hint}] }`로 **계열별 최신 모델만** 선언 → 설정 페이지(select)와 **툴바 팝업(세그먼트 버튼 Haiku/Sonnet/Opus)**에 자동 표시. 저장값이 목록에 없으면(예전 id) `modelChoices()`가 끝에 붙여 보여줌
   - claude-cli: `haiku`/`sonnet`/`opus` 별칭(항상 최신). 실측 2026-11-06 대기 프로세스·단어 1개: 세 모델 모두 완성 ~1.2~1.7s, Opus는 구독 사용량을 더 씀
   - anthropic-api: `claude-haiku-5-5`/`claude-sonnet-5-5`/`claude-opus-5-5`. `requestOptions()`: Haiku는 thinking disabled, Sonnet은 `between_tools`(disabled는 400), Opus는 thinking을 못 끄므로 effort low + max_tokens 하한 4000. 5.5 세대는 temperature를 보내면 400이라 안 보냄 — **실제 API 키로는 미검증**
+- 언어 (2026-11-10): `LANGS` 20개, 원문 언어는 LLM이 자동 판단. 목표 언어는 설정 페이지 + **툴바 팝업 select**에서 변경. 프롬프트의 **시스템 부분에는 언어를 넣지 않고** user 메시지 끝(`Answer in:` / `<target_language>`)에 붙임 → 언어를 바꿔도 claude-cli 대기 프로세스(모델·시스템 프롬프트별)를 그대로 재사용
+- popup/options UI는 토스(TDS) 느낌: 회색 배경 + 흰 카드, 파랑 `#3182f6`, 체크박스는 토글 스위치, 해요체 문구. 툴팁(content.js Shadow DOM)은 아직 예전 색(Claude 주황) 그대로
 - popup/options는 엔진 상태를 직접 확인하지 않고 background에 `{type:'engineStatus'}`로 물음 (`core/status-client.js`). 직접 `available()`을 부르면 claude-cli가 그 페이지만의 native host와 대기 claude 프로세스를 따로 띄웠다 버림
 - claude는 content block마다 `assistant` 이벤트를 보냄 → host는 **text 블록이 든 assistant에서만** 완료 처리 (thinking만 든 이벤트에서 끝내 빈 번역이 나오던 버그, Haiku 5.5에서 발생)
 - `ui.css`에 전역 `[hidden] { display: none !important }` — `.grid2`처럼 display를 지정한 요소에 hidden이 안 먹던 문제

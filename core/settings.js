@@ -37,8 +37,18 @@ export const LANGS = {
   es: { label: 'Español', en: 'Spanish' },
   fr: { label: 'Français', en: 'French' },
   de: { label: 'Deutsch', en: 'German' },
+  it: { label: 'Italiano', en: 'Italian' },
+  pt: { label: 'Português', en: 'Portuguese' },
+  nl: { label: 'Nederlands', en: 'Dutch' },
+  pl: { label: 'Polski', en: 'Polish' },
+  tr: { label: 'Türkçe', en: 'Turkish' },
+  ru: { label: 'Русский', en: 'Russian' },
+  uk: { label: 'Українська', en: 'Ukrainian' },
   vi: { label: 'Tiếng Việt', en: 'Vietnamese' },
-  ru: { label: 'Русский', en: 'Russian' }
+  th: { label: 'ไทย', en: 'Thai' },
+  id: { label: 'Bahasa Indonesia', en: 'Indonesian' },
+  hi: { label: 'हिन्दी', en: 'Hindi' },
+  ar: { label: 'العربية', en: 'Arabic' }
 };
 
 export const langName = (code) => (LANGS[code] || LANGS.ko).en;

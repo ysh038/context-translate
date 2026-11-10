@@ -32,7 +32,7 @@ function fillEngines() {
   }
 }
 
-const setStatus = (el, av) => { el.textContent = av?.ok ? '사용 가능' : '⚠ ' + (av?.reason || '알 수 없음'); el.className = av?.ok ? 'ok' : 'err'; };
+const setStatus = (el, av) => { el.textContent = av?.ok ? '사용 가능' : '⚠ ' + (av?.reason || '알 수 없음'); el.className = 'badge ' + (av?.ok ? 'ok' : 'err'); };
 
 // 선택된 엔진이 지금 쓸 수 있는 상태인지 표시 (확인은 background가 함)
 async function refreshEngineStatus() {
@@ -62,12 +62,12 @@ function renderProviderSettings(s) {
       const sec = document.createElement('section');
       sec.dataset.provider = p.id;
       const h = document.createElement('h2'); h.textContent = p.label; sec.append(h);
-      if (p.help) { const d = document.createElement('p'); d.className = 'muted small'; d.textContent = p.help; sec.append(d); }
+      if (p.help) { const d = document.createElement('p'); d.className = 'desc'; d.textContent = p.help; sec.append(d); }
       slot = document.createElement('div'); sec.append(slot);
       $('providerSettings').append(sec);
     }
     if (!mc) continue;
-    const label = document.createElement('label'); label.className = 'row col';
+    const label = document.createElement('label'); label.className = 'field';
     const span = document.createElement('span'); span.textContent = '모델';
     const sel = document.createElement('select'); sel.id = mc.key;
     for (const c of mc.choices) sel.add(new Option(`${c.label} — ${c.hint}`, c.value));
@@ -114,9 +114,14 @@ async function init() {
       if (id in ENGINE_FIELDS || id === 'apiKey') refreshEngineStatus();
     });
   }
-  // 팝업 등 다른 곳에서 모델을 바꾸면 여기도 반영
+  // 팝업 등 다른 곳에서 모델·언어를 바꾸면 여기도 반영
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area !== 'local') return;
+    for (const k of ['targetLang', 'hoverEnabled', 'selectionEnabled']) {
+      if (!ch[k]) continue;
+      const el = $(k);
+      if (el.type === 'checkbox') el.checked = ch[k].newValue; else el.value = ch[k].newValue;
+    }
     for (const p of PROVIDERS) {
       const k = p.models?.key;
       if (k && ch[k] && $(k) && $(k).value !== ch[k].newValue) $(k).value = ch[k].newValue;
