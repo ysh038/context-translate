@@ -23,6 +23,28 @@ const SYSTEM_TEXT = [
   `Output ONLY the translation. No notes, no quotes, no preamble.`
 ].join('\n');
 
+// 단어 답 형식 바로잡기.
+// Haiku가 다의어(예: fine — 명사·형용사·동사)에서 품사를 1줄 끝이 아니라 2줄 맨 앞에 쓰는 경우가 잦음
+//   "벌금\n명사 · 좋은 · 미세한"  →  "벌금 (명사)\n좋은 · 미세한"
+// 2026-11-10 실측: 원래 프롬프트에서 fine 3/3 발생. 프롬프트 문구를 바꾸거나 예시를 넣으면 다른 단어가
+// 더 망가져서(혼잣말 출력, 엉뚱한 답 언어) 프롬프트는 그대로 두고 여기서 고친다
+const POS_WORDS = '명사|동사|형용사|부사|대명사|전치사|접속사|감탄사|' +
+  'noun|verb|adjective|adverb|pronoun|preposition|conjunction|interjection|名詞|動詞|形容詞|副詞';
+const POS_ONLY = new RegExp(`^\\(?\\s*(${POS_WORDS})\\s*\\)?$`, 'i');
+const POS_SUFFIX = new RegExp(`\\s*\\((?:${POS_WORDS})\\)$`, 'i');
+
+export function tidyWordAnswer(text) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2 || /\)$/.test(lines[0])) return text; // 이미 "뜻 (품사)" 형식
+  const parts = lines[1].split('·').map((x) => x.trim()).filter(Boolean);
+  const m = parts[0]?.match(POS_ONLY);
+  if (!m) return text;
+  lines[0] = `${lines[0]} (${m[1]})`;
+  const rest = parts.slice(1).map((x) => x.replace(POS_SUFFIX, '')); // "좋은 (형용사)" → "좋은"
+  lines.splice(1, 1, ...(rest.length ? [rest.join(' · ')] : []));
+  return lines.join('\n');
+}
+
 /**
  * @param {import('./provider.js').TranslateRequest} req
  * @param {object} s 설정

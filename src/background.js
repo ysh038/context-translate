@@ -2,6 +2,7 @@ import { DEFAULTS } from '../core/settings.js';
 import { engineFor } from '../core/engines.js';
 import { ProviderError } from '../core/provider.js';
 import { cacheGet, cacheSet } from '../core/cache.js';
+import { tidyWordAnswer } from '../core/prompts.js';
 
 /* ───────────── 콘텐츠 스크립트와 통신 (port 1개 = 요청 1개) ─────────────
  * 요청: { source: 'hover'|'selection', mode: 'word'|'text', text, context?, title? }
@@ -32,6 +33,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
     const t0 = performance.now();
     let ttft = 0, lastPost = 0;
+    const tidy = (t) => (req2.mode === 'word' ? tidyWordAnswer(t) : t); // 스트리밍 중에도 같은 형식으로 보이게
     try {
       const text = await provider.translate(req2, {
         signal: ctrl.signal,
@@ -39,10 +41,10 @@ chrome.runtime.onConnect.addListener((port) => {
         onDelta: (full) => {
           const now = performance.now();
           if (!ttft) ttft = now - t0;
-          if (now - lastPost > 30) { lastPost = now; post({ type: 'delta', full }); } // 너무 잦은 렌더 방지
+          if (now - lastPost > 30) { lastPost = now; post({ type: 'delta', full: tidy(full) }); } // 너무 잦은 렌더 방지
         }
       });
-      const out = text.trim();
+      const out = tidy(text.trim());
       if (out) cacheSet(key, out);
       const ms = performance.now() - t0;
       post({ type: 'done', text: out, ttft: Math.round(ttft || ms), ms: Math.round(ms), engine, model });
