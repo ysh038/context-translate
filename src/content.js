@@ -1,4 +1,4 @@
-import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick } from '../core/settings.js';
+import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScript } from '../core/settings.js';
 
 (() => {
   if (window.__claudeTipLoaded) return;
@@ -11,24 +11,11 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick } from '../core/settings.j
     chrome.storage.local.get(DEFAULTS, (v) => { S = { ...S, ...v }; });
     chrome.storage.onChanged.addListener((ch, area) => {
       if (area !== 'local') return;
-      for (const k in ch) if (k in DEFAULTS) S[k] = ch[k].newValue;
+      for (const k in ch) if (k in DEFAULTS) S[k] = ch[k].newValue ?? DEFAULTS[k]; // 지워진 값은 기본값으로
       if (ch.tipPinned) { updatePinBtn(); if (box && !box.hidden) schedulePlace(); }
       if (!S.hoverEnabled && tip.src === 'hover') hide();
     });
   } catch { return; }
-
-  // 목표 언어 문자 판별 (라틴 문자권은 구분 불가 → 판별 안 함)
-  const SCRIPT_RE = {
-    ko: /[가-힣ㄱ-ㆎ]/,
-    ja: /[぀-ヿ]/,
-    'zh-CN': /[一-鿿]/,
-    'zh-TW': /[一-鿿]/,
-    ru: /[Ѐ-ӿ]/,
-    uk: /[Ѐ-ӿ]/,
-    th: /[฀-๿]/,
-    hi: /[ऀ-ॿ]/,
-    ar: /[؀-ۿ]/
-  };
 
   // 드래그 번역 최대 길이. 넘으면 안내 표시 (예전엔 5000자 넘으면 조용히 무시 → "아예 안 됨"처럼 보였음)
   const MAX_SELECTION = 20000;
@@ -452,7 +439,13 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick } from '../core/settings.j
     return n === 1;
   }
 
-  const inTargetScript = (t) => { const re = SCRIPT_RE[S.targetLang]; return re ? re.test(t) : false; };
+  // 결과 언어 글자로만 된 글(예: 한국어로 번역 중일 때 한글로만 된 단어·문장)은 번역하지 않는다 — 요청도 툴팁도 없음.
+  // 다른 글자가 섞여 있으면 통째로 결과 언어로 번역. "이미 그 언어라면 대신"을 골라 둔 사람만 그 언어로 번역하고,
+  // 그때도 hover는 hoverSkipTarget이 켜져 있으면 건너뛴다 (라틴 문자 언어는 글자로 구분할 수 없어 해당 없음)
+  function skipAsTarget(text, src) {
+    if (!onlyTargetScript(text, S.targetLang)) return false;
+    return !fallbackOf(S) || (src === 'hover' && S.hoverSkipTarget);
+  }
 
   /* ───────────── 1) 마우스 오버 번역 ───────────── */
   let hoverTimer = 0, hideTimer = 0;
@@ -474,7 +467,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick } from '../core/settings.j
     const key = w.word + '|' + w.start;
     if (tip.src === 'hover' && tip.key === key && !box.hidden) return;
     if (/^[\d\s.,:%\-+/]+$/.test(w.word)) return;
-    if (S.hoverSkipTarget && inTargetScript(w.word)) return;
+    if (skipAsTarget(w.word, 'hover')) return;
 
     translate({
       src: 'hover', mode: 'word', text: w.word,
@@ -547,6 +540,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick } from '../core/settings.j
     text = text.trim();
     if (!text) return;
     if (/^[\d\s.,:%\-+/]+$/.test(text)) return;
+    if (skipAsTarget(text, 'selection')) return;
     const anchor = { left: x, width: 0, top: y - 12, bottom: y + 12 };
     if (text.length > MAX_SELECTION) {
       // 조용히 무시하지 않고 이유를 보여준다

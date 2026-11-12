@@ -46,7 +46,7 @@ if (MODELS.length && !KEY) {
 }
 
 /* ───────── 예시 (⟦ ⟧ = 마우스를 올린 단어, 확장이 보내는 문맥 형식과 같음) ───────── */
-const S = { targetLang: 'ko', fallbackLang: 'en', showAlternatives: true };
+const S = { targetLang: 'ko', fallbackLang: 'none', showAlternatives: true };
 const word = (text, context, note) => ({ mode: 'word', text, context, note });
 const CASES = [
   word('run', 'I need to ⟦run⟧ a quick errand before the meeting.', '볼일을 보다 (달리다 X)'),

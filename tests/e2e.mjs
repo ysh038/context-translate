@@ -36,6 +36,8 @@ const server = http.createServer((req, res) => {
   <p id="p1">She sat on the <b>bank</b> of the river and watched the boats drift by. Then she went home.</p>
   <p id="p2">The quick brown fox jumps over the lazy dog.</p>
   <p id="p3">한국어 문장은 무시되어야 합니다.</p>
+  <p id="p4">이 문장에는 English 단어가 섞여 있습니다.</p>
+  <p id="p5">최신 API를 사용합니다.</p>
   <p id="long" style="font-size:4px">${'The river bank was quiet in the morning. '.repeat(170)}</p>
   <p id="slow">SLOWTEXT this one takes a while to answer.</p>
   <div style="height:1600px"></div>
@@ -100,6 +102,7 @@ async function runSuite(edition) {
     const h1 = await tipText(); check('hover shows contextual meaning', h1 && !h1.hidden && h1.src === 'bank' && h1.body.startsWith('강둑'), JSON.stringify(h1));
     check('final time shown as seconds', /^\d+\.\ds$/.test(h1?.meta || ''), JSON.stringify(h1?.meta));
     check('context marks target word', /⟦bank⟧/.test(lastContent()));
+    check('word request names only the target language', lastContent().endsWith('\nAnswer in: Korean'), lastContent().slice(-80));
     if (!cli) {
       const b = lastReq();
       check('API request: latest Haiku, thinking off, no temperature', b.model === 'claude-haiku-5-5' && b.thinking?.type === 'disabled' && !('temperature' in b), JSON.stringify({ model: b.model, thinking: b.thinking, t: b.temperature }));
@@ -112,6 +115,43 @@ async function runSuite(edition) {
     const k = await page.evaluate(() => { const b = document.querySelector('#p3').getBoundingClientRect(); return { x: b.x + 30, y: b.y + b.height / 2 }; });
     await page.mouse.move(k.x, k.y); await page.waitForTimeout(900);
     check('korean word hover skipped', calls() - n0 === 0);
+    // 결과 언어(한국어) 글자로만 된 글은 드래그·더블클릭해도 요청·툴팁 없음. 다른 글자가 섞이면 통째로 한국어로 번역
+    const rectOf = (id, word) => page.evaluate(([id, word]) => { const t = document.getElementById(id).firstChild; const i = word ? t.data.indexOf(word) : 0; const r = document.createRange(); r.setStart(t, i); r.setEnd(t, word ? i + word.length : t.data.length); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y + b.height / 2, w: b.width }; }, [id, word]);
+    const dragOver = async (b) => { await page.mouse.move(b.x + 1, b.y); await page.mouse.down(); await page.mouse.move(b.x + b.w - 1, b.y, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(1200); };
+    const selText = () => page.evaluate(() => getSelection().toString());
+    const k3 = await rectOf('p3');
+    await dragOver(k3);
+    check('korean-only drag: no request, no tooltip', (await selText()).includes('한국어 문장') && calls() === n0 && (await tipText()).hidden, await selText());
+    await clearTip();
+    const kw = await rectOf('p3', '문장은');
+    await page.mouse.dblclick(kw.x + kw.w / 2, kw.y); await page.waitForTimeout(900);
+    check('korean-only double-click: no request, no tooltip', (await selText()).includes('문장') && calls() === n0 && (await tipText()).hidden, await selText());
+    await clearTip();
+    await dragOver(await rectOf('p4'));
+    const mx = await tipText();
+    check('mixed korean+english drag is translated into the target language', !mx.hidden && calls() === n0 + 1 && lastContent().includes('English 단어가') && lastContent().endsWith('<target_language>Korean</target_language>'), lastContent().slice(-100));
+    await clearTip();
+    const api = await rectOf('p5', 'API');
+    await page.mouse.move(api.x + api.w / 2 - 3, api.y); await page.mouse.move(api.x + api.w / 2, api.y); await page.waitForTimeout(1500);
+    check('mixed word hover (API를) is translated into the target language', calls() === n0 + 2 && lastContent().startsWith('Word: API') && lastContent().endsWith('\nAnswer in: Korean') && !(await tipText()).hidden, lastContent());
+    await moveAway();
+    // "이미 그 언어라면 대신"에서 언어를 고른 경우: 한글로만 된 글을 드래그하면 그 언어로, hover는 건너뛰기 토글을 따름
+    await sw.evaluate(() => chrome.storage.local.set({ fallbackLang: 'en' })); await page.waitForTimeout(150);
+    const nF = calls();
+    await page.mouse.move(k.x - 3, k.y); await page.mouse.move(k.x, k.y); await page.waitForTimeout(900);
+    check('fallback language chosen: korean hover still skipped', calls() === nF);
+    await dragOver(k3);
+    check('fallback language chosen: korean-only drag goes to that language', calls() === nF + 1 && lastContent().endsWith('<target_language>English</target_language>') && !(await tipText()).hidden, lastContent().slice(-100));
+    await clearTip();
+    await sw.evaluate(() => chrome.storage.local.set({ hoverSkipTarget: false })); await page.waitForTimeout(150);
+    await page.mouse.move(k.x - 3, k.y); await page.mouse.move(k.x, k.y); await page.waitForTimeout(1500);
+    check('fallback language chosen + skip off: korean hover goes to that language', calls() === nF + 2 && lastContent().endsWith('\nAnswer in: English'), lastContent().slice(-100));
+    await moveAway();
+    await sw.evaluate(() => chrome.storage.local.remove(['fallbackLang', 'hoverSkipTarget'])); await page.waitForTimeout(150);
+    const nR = calls();
+    await dragOver(k3);
+    check('settings removed: back to not translating korean', calls() === nR && (await tipText()).hidden);
+    await clearTip();
     // select sentence p1
     const p = await page.evaluate(() => { const b = document.querySelector('#p1').getBoundingClientRect(); return { x: b.x, y: b.y, height: b.height }; });
     const dragP1 = async () => { await page.mouse.move(p.x + 2, p.y + p.height / 2); await page.mouse.down(); await page.mouse.move(p.x + 500, p.y + p.height / 2, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(1200); };
@@ -244,6 +284,16 @@ async function runSuite(edition) {
     check('options model select lists latest-only choices', JSON.stringify(modelOpts) === JSON.stringify(cli ? ['haiku', 'sonnet', 'opus'] : ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5']), JSON.stringify(modelOpts));
     await op.click('#runTest'); await op.waitForTimeout(1500);
     check('options page test translation', (await op.textContent('#testOut')).includes('강둑'));
+    // "이미 그 언어라면 대신": 기본은 번역 안 함. 언어를 골라야 hover 건너뛰기 토글이 보임
+    const fbOpts = await op.$$eval('#fallbackLang option', (os) => os.map((o) => o.value));
+    check('options: "번역 안 함" is first and selected by default, skip toggle hidden', fbOpts[0] === 'none' && (await op.inputValue('#fallbackLang')) === 'none' && (await op.isHidden('#hoverSkipRow')), JSON.stringify(fbOpts.slice(0, 3)));
+    const nT = calls();
+    await op.fill('#testText', '한국어 문장입니다.'); await op.click('#runTest'); await op.waitForTimeout(500);
+    check('options test box does not translate target-language text', (await op.textContent('#testOut')).includes('번역하지 않아요') && calls() === nT, await op.textContent('#testOut'));
+    await op.selectOption('#fallbackLang', 'en'); await op.waitForTimeout(300);
+    check('options: choosing a language saves it and shows the skip toggle', (await sw.evaluate(() => chrome.storage.local.get('fallbackLang'))).fallbackLang === 'en' && (await op.isVisible('#hoverSkipRow')));
+    await op.selectOption('#fallbackLang', 'none'); await op.waitForTimeout(300);
+    check('options: back to "번역 안 함" hides the toggle again', (await op.isHidden('#hoverSkipRow')));
     if (providers.length > 1) {
       await op.selectOption('#selectionEngine', 'chrome-builtin'); await op.waitForTimeout(300);
       const st = await sw.evaluate(() => chrome.storage.local.get('selectionEngine'));

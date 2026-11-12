@@ -6,11 +6,11 @@ export const DEFAULTS = {
   apiKey: '',
   model: 'claude-haiku-5-5',      // anthropic-api 모델 (최신 세대만 선택지로 제공)
   targetLang: 'ko',
-  fallbackLang: 'en',        // 이미 목표 언어인 텍스트를 만났을 때 번역할 언어
+  fallbackLang: 'none',      // 결과 언어 글자로만 된 글을 만났을 때: 'none' = 번역 안 함, 언어 코드 = 그 언어로 번역
   hoverEnabled: true,
   hoverModifier: 'none',     // none | alt | shift | ctrl | meta
   hoverDelay: 450,           // ms, 마우스를 멈추고 기다리는 시간
-  hoverSkipTarget: true,     // 목표 언어 단어(예: 한글)는 hover 무시
+  hoverSkipTarget: true,     // fallbackLang을 골랐을 때만 의미 있음: 결과 언어 글자로만 된 단어는 hover에서 건너뛰기
   hoverEngine: 'anthropic-api',     // 마우스 오버 번역에 쓸 provider id
   selectionEnabled: true,
   selectionMode: 'auto',     // auto | button
@@ -24,7 +24,7 @@ export const DEFAULTS = {
 
 // content script가 읽는 키 (API 키 등 민감한 값은 content script로 가져가지 않는다)
 export const CONTENT_KEYS = ['hoverEnabled', 'hoverModifier', 'hoverDelay', 'hoverSkipTarget',
-  'selectionEnabled', 'selectionMode', 'contextMode', 'targetLang', 'tipPinned'];
+  'selectionEnabled', 'selectionMode', 'contextMode', 'targetLang', 'fallbackLang', 'tipPinned'];
 
 export const pick = (obj, keys) => Object.fromEntries(keys.map((k) => [k, obj[k]]));
 
@@ -53,6 +53,39 @@ export const LANGS = {
 
 export const langName = (code) => (LANGS[code] || LANGS.ko).en;
 
-// 이미 목표 언어일 때 대신 번역할 언어 (fallback이 목표와 같으면 ko↔en)
+// 결과 언어 글자로만 된 글을 대신 번역할 언어. 없으면(null) 그런 글은 번역하지 않는다
+// (기본값 'none'. 결과 언어와 같은 언어를 골라도 번역할 게 없으므로 null)
 export const fallbackOf = (s) =>
-  s.fallbackLang === s.targetLang ? (s.targetLang === 'en' ? 'ko' : 'en') : s.fallbackLang;
+  s.fallbackLang && s.fallbackLang !== 'none' && s.fallbackLang !== s.targetLang ? s.fallbackLang : null;
+
+// 문자 종류로 알아볼 수 있는 결과 언어. 라틴 문자 언어끼리는 글자만으로 구분할 수 없어 여기 없다
+//   own: 그 언어 글자 / must: 이 글자가 하나는 있어야 그 언어로 본다 (한자만 있으면 일본어인지 중국어인지 모름)
+const SCRIPTS = {
+  ko: { own: /\p{scx=Hangul}/u },
+  ja: { own: /[\p{scx=Hiragana}\p{scx=Katakana}\p{scx=Han}]/u, must: /[\p{scx=Hiragana}\p{scx=Katakana}]/u },
+  'zh-CN': { own: /\p{scx=Han}/u },
+  'zh-TW': { own: /\p{scx=Han}/u },
+  ru: { own: /\p{scx=Cyrillic}/u },
+  uk: { own: /\p{scx=Cyrillic}/u },
+  th: { own: /\p{scx=Thai}/u },
+  hi: { own: /\p{scx=Devanagari}/u },
+  ar: { own: /\p{scx=Arabic}/u }
+};
+const LETTER = /\p{L}/u;
+
+export const scriptKnown = (lang) => lang in SCRIPTS;
+
+// 글자가 모두 그 언어 문자인가 (예: ko — 한글로만 된 글). 숫자·문장부호·공백·이모지는 글자로 치지 않는다.
+// 다른 글자가 하나라도 섞여 있으면(예: "React 컴포넌트", "韓國") false → 통째로 결과 언어로 번역한다
+export function onlyTargetScript(text, lang) {
+  const sc = SCRIPTS[lang];
+  if (!sc) return false;
+  let seen = false, must = !sc.must;
+  for (const ch of text) {
+    if (!LETTER.test(ch)) continue;
+    if (!sc.own.test(ch)) return false;
+    seen = true;
+    if (!must && sc.must.test(ch)) must = true;
+  }
+  return seen && must;
+}

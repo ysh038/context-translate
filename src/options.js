@@ -1,4 +1,4 @@
-import { DEFAULTS, LANGS, EDITION } from '../core/settings.js';
+import { DEFAULTS, LANGS, EDITION, fallbackOf, onlyTargetScript } from '../core/settings.js';
 import { PROVIDERS, engineFor, getProvider, modelChoices } from '../core/engines.js';
 import { listModels } from '../providers/anthropic-api.js';
 import { engineStatus } from '../core/status-client.js';
@@ -21,6 +21,14 @@ function fillLangs() {
   for (const id of ['targetLang', 'fallbackLang']) {
     $(id).innerHTML = Object.entries(LANGS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   }
+  $('fallbackLang').prepend(new Option('번역 안 함', 'none')); // 기본값: 결과 언어 글자로만 된 글은 번역하지 않음
+}
+
+const langChoice = () => ({ targetLang: $('targetLang').value, fallbackLang: $('fallbackLang').value });
+
+// "이미 그 언어인 단어는 건너뛰기"는 대신 번역할 언어를 골랐을 때만 의미가 있다 ("번역 안 함"이면 항상 건너뜀)
+function syncSkipRow() {
+  $('hoverSkipRow').hidden = !fallbackOf(langChoice());
 }
 
 function fillEngines() {
@@ -102,6 +110,7 @@ async function init() {
     else el.value = s[id];
   }
   $('hoverDelayVal').textContent = s.hoverDelay + 'ms';
+  syncSkipRow();
   if (s.apiKey) $('keyStatus').textContent = 'API 키가 저장되어 있습니다.';
 
   for (const id of FIELDS) {
@@ -112,6 +121,7 @@ async function init() {
       await chrome.storage.local.set({ [id]: readField(id) });
       flashSaved();
       if (id in ENGINE_FIELDS || id === 'apiKey') refreshEngineStatus();
+      if (id === 'targetLang' || id === 'fallbackLang') syncSkipRow();
     });
   }
   // 팝업 등 다른 곳에서 모델·언어를 바꾸면 여기도 반영
@@ -122,6 +132,7 @@ async function init() {
       const el = $(k);
       if (el.type === 'checkbox') el.checked = ch[k].newValue; else el.value = ch[k].newValue;
     }
+    if (ch.targetLang) syncSkipRow();
     for (const p of PROVIDERS) {
       const k = p.models?.key;
       if (k && ch[k] && $(k) && $(k).value !== ch[k].newValue) $(k).value = ch[k].newValue;
@@ -156,7 +167,13 @@ $('runTest').addEventListener('click', () => {
   const text = $('testText').value.trim();
   if (!text) return;
   const out = $('testOut'), meta = $('testMeta');
-  out.textContent = '…'; meta.textContent = '';
+  meta.textContent = '';
+  const lc = langChoice();
+  if (onlyTargetScript(text, lc.targetLang) && !fallbackOf(lc)) { // 페이지에서도 이런 글은 번역하지 않는다
+    out.textContent = `이미 ${LANGS[lc.targetLang].label} 글자로만 된 글이라 번역하지 않아요.`;
+    return;
+  }
+  out.textContent = '…';
   const port = chrome.runtime.connect({ name: 'translate' });
   port.onMessage.addListener((m) => {
     if (m.type === 'delta') out.textContent = m.full;
