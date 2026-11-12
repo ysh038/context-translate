@@ -3,7 +3,7 @@
 //   npm run host:uninstall   제거
 //
 // 하는 일:
-//   1) host 코드(host.mjs, claude-pool.mjs)를 ~/Library/Application Support/claude-tooltip-translate/host/ 로 복사
+//   1) host 코드(host.mjs, claude-pool.mjs, leak-guard.mjs)를 ~/Library/Application Support/claude-tooltip-translate/host/ 로 복사
 //      → macOS는 Chrome이 띄운 프로세스가 ~/Desktop·~/Documents 등을 읽는 걸 막을 수 있음(TCC).
 //        저장소가 그런 폴더에 있어도 동작하도록 사본을 실행한다. (2026-11-05 실제로 겪음: "Native host has exited")
 //   2) 같은 폴더에 config.json(claude 절대 경로 — Chrome이 띄운 프로세스는 PATH가 짧음), run.sh(진입점)
@@ -20,7 +20,7 @@ const ROOT = path.resolve(HERE, '..');
 const AS = path.join(os.homedir(), 'Library', 'Application Support');
 export const INSTALL_DIR = path.join(AS, 'claude-tooltip-translate', 'host');
 export const LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'claude-tooltip-translate');
-const HOST_FILES = ['host.mjs', 'claude-pool.mjs'];
+const HOST_FILES = ['host.mjs', 'claude-pool.mjs', 'leak-guard.mjs'];
 
 // 앱 폴더가 있는 브라우저에만 설치
 const BROWSERS = [

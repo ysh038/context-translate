@@ -41,6 +41,7 @@ const server = http.createServer((req, res) => {
   <p id="p4">이 문장에는 English 단어가 섞여 있습니다.</p>
   <p id="p5">최신 API를 사용합니다.</p>
   <p id="p6">이 문장은 대부분 한국어이고 FLIPALWAYS 라는 낱말만 영어입니다.</p>
+  <p id="p7">LEAKALWAYS short title</p>
   <p id="long" style="font-size:4px">${'The river bank was quiet in the morning. '.repeat(170)}</p>
   <p id="slow">SLOWTEXT this one takes a while to answer.</p>
   <div style="height:1600px"></div>
@@ -145,6 +146,16 @@ async function runSuite(edition) {
     check('answer flipped to another language is not shown (3 tries, then a notice)', !wl.hidden && calls() === nW + 3 && wl.body.includes('다른 언어로') && !/sentence/.test(wl.body), JSON.stringify({ wl, n: calls() - nW }));
     await clearTip();
     n0 += 3;
+    if (cli) {
+      // claude -p: 번역 대신 claude가 프롬프트에 붙인 내용(환경 정보)이 나오면 host가 버리고 다시 시도(모두 3번) → 그래도 그러면 안내
+      const nL = calls();
+      await dragOver(await rectOf('p7')); await page.waitForTimeout(1500);
+      const lk = await tipText();
+      check('claude-cli: leaked environment info is never shown (3 tries, then a notice)',
+        !lk.hidden && calls() === nL + 3 && lk.body.includes('엉뚱한 내용') && !/Environment|working directory|ctt-claude/.test(lk.body), JSON.stringify({ lk, n: calls() - nL }));
+      await clearTip();
+      n0 += 3;
+    }
     const api = await rectOf('p5', 'API');
     await page.mouse.move(api.x + api.w / 2 - 3, api.y); await page.mouse.move(api.x + api.w / 2, api.y); await page.waitForTimeout(1500);
     check('mixed word hover (API를) is translated into the target language', calls() === n0 + 2 && lastContent().startsWith('Word: API') && lastContent().endsWith('\nAnswer in: Korean') && !(await tipText()).hidden, lastContent());

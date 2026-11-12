@@ -56,7 +56,7 @@ function onHostMessage(m) {
 }
 
 function toProviderError({ code, message = '' }) {
-  if (code === 'NO_CLAUDE') return new ProviderError(message, { code });
+  if (code === 'NO_CLAUDE' || code === 'LEAK') return new ProviderError(message, { code }); // host가 만든 안내 문구 그대로
   if (/log ?in|authenticat|oauth|credential/i.test(code + ' ' + message)) {
     return new ProviderError('Claude Code에 로그인되어 있지 않습니다.\n터미널에서 claude 를 실행해 로그인해 주세요.', { code: 'AUTH' });
   }

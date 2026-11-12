@@ -13,7 +13,7 @@
 src/        확장 진입점·정적 파일: background.js, content.js, options.*, popup.*, ui.css, icons/, manifest.json(베이스)
 core/       settings.js(DEFAULTS·EDITION), prompts.js, provider.js(인터페이스·ProviderError), engines.js(선택 로직), cache.js
 providers/  anthropic-api.js, claude-cli.js(구현됨) / chrome-builtin.js(store용 자리, available()=false)
-native-host/ host.mjs(native messaging), claude-pool.mjs(claude -p 프로세스 풀), install.mjs — 개인용 전용
+native-host/ host.mjs(native messaging), claude-pool.mjs(claude -p 프로세스 풀), leak-guard.mjs(답에 claude가 붙인 내용이 샜는지 검사), install.mjs — 개인용 전용
 editions/   personal.json, store.json — providers 목록, manifest 덮어쓰기, 기본 설정
 scripts/    build.mjs(esbuild → dist/<에디션>), check-store.mjs, edition-rules.mjs(개인용 전용 목록), ext-id.mjs
 tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사용량 안 씀)
@@ -44,10 +44,15 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
   - `fallbackLang`("이미 그 언어라면 대신") 기본값 `none` = 번역 안 함. 언어를 골라 둔 사람만 그런 글이 그 언어로 번역됨: 답할 언어는 `buildPrompt`가 직접 정해 `Answer in: English`처럼 보냄(모델에게 "이미 한국어면…" 조건을 묻지 않음). `hoverSkipTarget` 토글은 이때만 설정 페이지에 보이고 의미가 있음(켜져 있으면 hover는 건너뛰고 드래그만 번역)
   - 한계: 라틴 문자 언어(en·es·fr…)가 결과 언어면 글자로 구분할 수 없어 건너뛰지 않음(대신 언어를 고른 경우에만 예전처럼 "(if … is already X, … instead)"를 모델에게 맡김). 같은 문자를 쓰는 다른 언어(ru↔uk, 결과 언어가 중국어일 때 한자만 있는 일본어 단어)도 구분 못 함
   - 이미 상당 부분이 결과 언어인 섞인 글(`mostlyTarget()`: 문장 번역이고 결과 언어 글자가 30% 이상)은 모델이 **반대로 영어로 번역**하곤 함 — "한국어를 한국어로"는 할 일이 없어서. 2026-11-12 실측(GeekNews 문단, 실제 claude): Haiku 17번 중 5번 뒤집힘, 문맥을 함께 보내면 문단을 빼먹거나 더 자주 뒤집힘, Opus는 2번 모두 정상. 프롬프트로는 못 막음(시스템 프롬프트에 "이미 결과 언어인 부분은 그대로" 규칙이나 user 메시지 `<note>`를 넣으면 Haiku가 혼잣말을 덧붙이거나 claude -p가 붙인 환경 정보·system-reminder를 번역해 내놓음) → **코드로 막음**: ① 이런 글은 `buildPrompt`가 문맥을 빼고 보냄 ② background가 답을 다 받은 뒤 `wrongLanguage()`(답의 결과 언어 글자 비율이 원문의 절반 미만)로 검사해 뒤집혔으면 다시 시도(모두 3번), 그래도면 "번역이 다른 언어로 나와서 표시하지 않았어요" 안내. 검사 대상 요청은 스트리밍 글자를 내보내지 않음(점 세 개만 보이다가 완성본 표시)
-  - 알려진 문제(미해결): 번역할 글이 아주 짧고 제목처럼 생기면(예: `How AI Text Watermarking Works\nLLM` 두 줄) Haiku가 그 글 대신 claude -p가 프롬프트에 붙이는 환경 정보(`# Environment …`)나 `<system-reminder>`(계정 이메일 포함)를 번역·출력하는 경우가 있음 (실측 5번 중 4번). 그래서 "영어 구만 뽑아 번역" 방식은 쓰지 않음
+  - "영어 구만 뽑아 번역" 방식은 쓰지 않음 — 아주 짧고 제목 같은 글(예: `How AI Text Watermarking Works\nLLM` 두 줄)은 claude -p에서 엉뚱한 답이 나오기 쉬웠음(아래 "claude가 프롬프트에 붙이는 내용" 항목). 그 문제를 막은 지금도 이런 글은 Haiku가 고유명사로 보고 **영어 그대로 돌려주는** 일이 잦음(2026-11-12 실측 19건 중 17건)
   - 계기: 기본값에서 한글 hover는 원래 건너뛰었지만 드래그·더블클릭(`handleSelection`)에는 건너뛰기가 없었고 프롬프트가 "이미 한국어면 영어로"를 지시해서, 한글을 더블클릭하면 영어 번역이 나왔음
 - popup/options UI는 토스(TDS) 느낌: 회색 배경 + 흰 카드, 파랑 `#3182f6`, 체크박스는 토글 스위치, 해요체 문구. 툴팁(content.js Shadow DOM)은 아직 예전 색(Claude 주황) 그대로
 - popup/options는 엔진 상태를 직접 확인하지 않고 background에 `{type:'engineStatus'}`로 물음 (`core/status-client.js`). 직접 `available()`을 부르면 claude-cli가 그 페이지만의 native host와 대기 claude 프로세스를 따로 띄웠다 버림
+- **claude가 프롬프트에 붙이는 내용이 번역 대신 나오던 문제** (2026-11-12 수정): `--system-prompt`를 줘도 Claude Code는 요청마다 환경 정보(`# Environment / You have been invoked in the following environment: …` 작업 폴더·플랫폼·OS 버전·임시 폴더), 모델 이름·ID, 오늘 날짜, `<system-reminder>`(`# userEmail` 로그인 계정 이메일)를 붙임. 이를 없애는 옵션·환경 변수는 없음(`--exclude-dynamic-system-prompt-sections`·`--safe-mode`·`--restricted`·`--system-prompt-snapshot off`, `CLAUDE_CODE_DISABLE_ATTACHMENTS` 등 모두 효과 없음, `CLAUDE_CODE_SIMPLE`/`--bare`는 OAuth를 안 읽음). 기본값에서는 환경 정보가 **번역할 글 뒤**에 system 역할 메시지로 와서, 글이 아주 짧고 제목 같으면 Haiku가 그것을 통째로 출력·번역함(실측 5건 중 1~4건, 안 새도 번역 앞에 `# `를 붙이거나 혼잣말)
+  - 막는 방법 ① `claudeEnv()`(claude-pool.mjs)가 `CLAUDE_CODE_MODEL_CAPABILITIES=-mid_conv_system`을 넘김 → 붙는 내용이 모두 번역할 글 **앞**의 `<system-reminder>`로 가고 번역할 글이 요청 맨 끝에 옴. 실제 호출 19건 중 0건 샘. `--help`에 없는 변수(실행 파일에서 찾음, claude 2.1.303)라 버전이 바뀌면 안 먹을 수 있음 → 그러면 예전 위치로 돌아갈 뿐
+  - 막는 방법 ② 출력 검사 `leakedPrompt()`(leak-guard.mjs): 답에 흔적(`system-reminder`, `# Environment`, 작업 폴더 경로 `ctt-claude-…`, `userEmail`, 모델 ID, OS 버전, **원문에 없는 이메일 주소**)이 있으면 풀이 그 프로세스를 끊고 새 프로세스로 다시 시도(모두 3번, host.log에 `req leak try=n/3`), 그래도면 오류 `LEAK`("번역 대신 엉뚱한 내용이 나와서 표시하지 않았어요"). 원문(user 메시지)에 같은 것이 있으면 흔적으로 안 침(Claude Code를 다루는 글). 스트리밍 중에도 검사하고, 공백 없이 이어진 ASCII 덩어리(경로·이메일)는 덩어리가 끝날 때까지 화면에 안 내보냄(`safePrefix`) → 경로·이메일은 잠깐도 안 보임. ①을 끈 채 실제 호출 7건: 새는 답 3번 모두 걸려 재시도, 최종 결과 7건 정상
+  - 남은 한계: 태그·경로 없이 완전히 번역돼 새는 경우 흔적이 나오기 전의 머리말 몇 낱말(예: "# 환경 / 다음 환경에서 호출되었습니다")은 잠깐 보였다가 지워짐. 경로·이메일·모델 ID가 하나도 없는 번역된 조각(예: 날짜 한 줄)은 못 거름
+  - 요청 본문 확인법(구독 사용량 0): `ANTHROPIC_BASE_URL=http://127.0.0.1:<포트>`로 가짜 SSE 서버를 가리키고 풀과 같은 옵션으로 claude를 실행하면 `system`·`messages`가 그대로 옴
 - claude는 content block마다 `assistant` 이벤트를 보냄 → host는 **text 블록이 든 assistant에서만** 완료 처리 (thinking만 든 이벤트에서 끝내 빈 번역이 나오던 버그, Haiku 5.5에서 발생)
 - `ui.css`에 전역 `[hidden] { display: none !important }` — `.grid2`처럼 display를 지정한 요소에 hidden이 안 먹던 문제
 - claude-cli 흐름: background가 `connectNative('dev.claude_tooltip_translate.cli')` 포트 1개를 계속 열고 요청을 id로 구분 → host가 프로세스 풀로 처리
@@ -58,7 +63,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
   - 터미널에서 바로 확인: `npm run host:test -- "문장"`
   - rate_limit_event(구독 한도 상태)는 `chrome.storage.session.cliRateLimit`에 저장만 해 둠 (표시는 아직)
 - 검사: `npm run check:store`(store 빌드 후 nativeMessaging·manifest key·`claude-cli`/`connectNative`/`claude -p` 문자열 검사). `build.mjs`도 store 에디션에 개인용 전용 provider가 있으면 빌드 거부
-- `npm test` = test:unit(프롬프트·문자 판별) + check:store + test:host(21개, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(125개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/결과 언어 글 건너뛰기(한글만·섞인 글·대신 언어)/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
+- `npm test` = test:unit(프롬프트·문자 판별) + check:store + test:host(37개, 출력 검사·새는 답 재시도 포함, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(124개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/결과 언어 글 건너뛰기(한글만·섞인 글·대신 언어)/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
   - 확장 로드 시 headless는 `channel: 'chromium'` 필요
   - Chromium은 `<user-data-dir>/NativeMessagingHosts/`의 host manifest를 읽음 → 테스트는 임시 프로필에 등록 (사용자 Chrome 설정 안 건드림)
 - CI 설정 파일은 아직 없음 → 원격 저장소 생기면 `npm ci && npx playwright install chromium && npm test`
@@ -79,6 +84,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
    - 원래 계획(한 프로세스 상주, 20~30회마다 재시작)에서 바꾼 이유: 옵션을 줄이니 시동 비용이 0.3s로 작아졌고, 한 프로세스에 계속 보내면 답 뒤의 `post_turn_summary`(추가 모델 호출, ~1.5s)가 끝나야 다음 요청을 받음. 프로세스를 바로 끝내면 문맥 누적·추가 호출·취소 처리가 모두 해결됨
    - 취소 = 해당 프로세스 종료. 15분 안 쓰면 대기 프로세스 정리
    - 사용 옵션: `-p --model <m> --system-prompt <s> --tools "" --strict-mcp-config --setting-sources "" --no-session-persistence --disable-slash-commands --no-chrome --input-format stream-json --output-format stream-json --verbose --include-partial-messages`, 빈 임시 폴더에서 실행
+   - 환경 변수: `CLAUDE_CODE_ENTRYPOINT=context-translate`, `CLAUDE_CODE_MODEL_CAPABILITIES=-mid_conv_system`(붙는 환경 정보를 번역할 글 앞으로 — 위 "claude가 프롬프트에 붙이는 내용" 항목)
    - `--bare`는 OAuth(구독 로그인)를 읽지 않으므로 쓸 수 없음
 
 ## 실측 (사용자 MacBook, 2026-11-05)
