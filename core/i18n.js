@@ -1,14 +1,19 @@
 // 화면(UI) 언어 — 팝업·설정 페이지·툴팁·오류 문구
-// 한국어 문구가 원문(키)이고, 다른 언어는 사전에서 찾아 바꾼다. 사전에 없으면 한국어 그대로 보여 준다.
+// 한국어 문구가 원문(키)이고, 다른 언어는 그 언어의 문구 목록에서 찾아 바꾼다. 없으면 영어, 영어에도 없으면 한국어 그대로.
 //   t('설정 열기')                         → 'Open settings'
 //   t('실패: {message}', { message })    → 값은 {이름} 자리에 끼워 넣는다
-// 기본은 브라우저 언어를 따른다(설정 uiLang = 'auto'): 한국어 브라우저 → 한국어, 그 밖에는 영어.
-// 사전은 쓰는 쪽이 addMessages로 등록한다 — 툴팁용(content)·페이지용(pages)·provider별로 나뉘어 있어
-// content script에는 툴팁 문구만, store 빌드에는 개인용 전용 provider의 문구가 들어가지 않는다.
+// 기본은 브라우저 언어를 따른다(설정 uiLang = 'auto'). 문구가 없는 언어의 브라우저는 영어.
+// 언어별 문구는 core/i18n/locales/<언어>.js 에 있고, 쓰는 쪽이 필요한 묶음만 addMessages로 등록한다
+// (core/i18n/pages.js·content.js·<provider>.js) — content script에는 툴팁 문구만,
+// store 빌드에는 개인용 전용 provider의 문구가 들어가지 않는다.
 
-export const UI_LANGS = { ko: '한국어', en: 'English' }; // 화면 언어로 고를 수 있는 것 (사전이 있는 언어)
+// 화면 언어로 고를 수 있는 것 (문구 파일이 있는 언어). 이름은 그 언어로 적는다
+export const UI_LANGS = {
+  ko: '한국어', en: 'English', ja: '日本語', 'zh-CN': '中文(简体)', 'zh-TW': '中文(繁體)',
+  es: 'Español', fr: 'Français', de: 'Deutsch', it: 'Italiano', pt: 'Português', ru: 'Русский'
+};
 const SOURCE = 'ko';   // 코드에 적힌 문구의 언어
-const FALLBACK = 'en'; // 사전이 없는 브라우저 언어일 때
+const FALLBACK = 'en'; // 문구가 없는 브라우저 언어일 때, 그리고 어떤 언어에 문구 하나가 빠졌을 때
 
 const dict = {};
 let lang = SOURCE;
@@ -26,7 +31,9 @@ const browserLang = () => {
 /** 설정값('auto' | 언어 코드) → 실제로 쓸 화면 언어 */
 export function resolveUiLang(p = 'auto', browser = browserLang()) {
   if (p && p !== 'auto' && p in UI_LANGS) return p;
-  const base = String(browser).toLowerCase().split('-')[0];
+  const tag = String(browser).toLowerCase().replace(/_/g, '-'); // 예: ko, en-US, zh-TW, pt-BR, es-419
+  const base = tag.split('-')[0];
+  if (base === 'zh') return /-(tw|hk|mo|hant)\b/.test(tag) ? 'zh-TW' : 'zh-CN'; // 번체: 대만·홍콩·마카오
   return base in UI_LANGS ? base : FALLBACK;
 }
 
@@ -39,7 +46,7 @@ export const uiLang = () => lang;
 const fill = (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s);
 
 export function t(s, vars) {
-  return fill(lang === SOURCE ? s : dict[lang]?.[s] ?? s, vars);
+  return fill(lang === SOURCE ? s : dict[lang]?.[s] ?? dict[FALLBACK]?.[s] ?? s, vars);
 }
 
 /**

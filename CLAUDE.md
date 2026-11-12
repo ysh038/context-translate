@@ -41,12 +41,15 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
 - 언어 (2026-11-10): `LANGS` 20개, 원문 언어는 LLM이 자동 판단. 목표 언어는 설정 페이지("이 언어로 번역") + **툴바 팝업 select**("[한국어 ▾]로 번역" — 선택창이 앞, 한 문장으로 읽힘)에서 변경. 예전 문구 "번역할 언어"는 "한국어를 번역한다"로도 읽혀서 바꿈 (2026-11-12). 프롬프트의 **시스템 부분에는 언어를 넣지 않고** user 메시지 끝(`Answer in:` / `<target_language>`)에 붙임 → 언어를 바꿔도 claude-cli 대기 프로세스(모델·시스템 프롬프트별)를 그대로 재사용
 - popup/options UI는 토스(TDS) 느낌: 회색 배경 + 흰 카드, 파랑 `#3182f6`, 체크박스는 토글 스위치, 해요체 문구. 툴팁(content.js Shadow DOM)은 아직 예전 색(Claude 주황) 그대로
 - popup/options는 엔진 상태를 직접 확인하지 않고 background에 `{type:'engineStatus'}`로 물음 (`core/status-client.js`). 직접 `available()`을 부르면 claude-cli가 그 페이지만의 native host와 대기 claude 프로세스를 따로 띄웠다 버림
-- 화면(UI) 언어 (2026-11-12): 기본은 **브라우저 언어 따르기** (`uiLang: 'auto'` — `chrome.i18n.getUILanguage()`가 한국어면 한국어, 그 밖에는 영어). 설정 페이지 "화면 언어"에서 직접 고를 수 있음. `core/i18n.js`: 코드·HTML에 적힌 **한국어 문구가 원문(키)**이고, 영어는 사전에서 찾음 (없으면 한국어 그대로)
-  - 사전: 툴팁 `core/i18n/content.js`, 팝업·설정 `core/i18n/pages.js`, provider 문구(엔진 이름·모델 설명·오류)는 `providers/<id>.js` 맨 아래 `addMessages` → content script에는 툴팁 문구만, store 번들에는 claude -p 문구가 안 들어감
-  - 팝업·설정 페이지: `watchDom()`이 HTML과 코드가 넣는 글자·`title`·`aria-label`·`placeholder`를 **문구 전체가 사전 키와 같을 때** 자동으로 바꿈 → HTML은 한국어 그대로 쓰면 됨. 값을 끼워 넣는 문구만 `t('실패: {message}', { message })`. `translate="no"` 안쪽(번역 결과 등)은 안 건드림
+- 화면(UI) 언어 (2026-11-12): 기본은 **브라우저 언어 따르기** (`uiLang: 'auto'` — `chrome.i18n.getUILanguage()`). 설정 페이지 "화면 언어"에서 직접 고를 수 있음. 지원: 한국어·English·日本語·中文(简体/繁體)·Español·Français·Deutsch·Italiano·Português·Русский (`UI_LANGS`). 그 밖의 브라우저 언어는 영어. 아랍어 등 오른쪽→왼쪽 언어는 레이아웃 작업이 필요해 아직 없음
+  - `core/i18n.js`: 코드·HTML에 적힌 **한국어 문구가 원문(키)**. 다른 언어는 `core/i18n/locales/<언어>.js`에서 찾고, 없으면 영어, 영어에도 없으면 한국어 그대로. **여기서 "문구 목록"은 메뉴·버튼·안내·오류 같은 화면 문구이고, 웹페이지 번역(claude -p)과는 무관**
+  - locale 파일 하나에 묶음 5개를 따로 export: `pages`(팝업·설정), `content`(툴팁), `anthropicApi`·`chromeBuiltin`·`claudeCli`(provider의 엔진 이름·모델 설명·오류). `core/i18n/pages.js`·`content.js`·`<provider id>.js`가 묶음별로 모든 언어를 모으고, 쓰는 쪽이 `addMessages`로 등록 → content script에는 툴팁 문구만(약 +17KB), store 번들에는 claude -p 문구가 안 들어감
+  - 팝업·설정 페이지: `watchDom()`이 HTML과 코드가 넣는 글자·`title`·`aria-label`·`placeholder`를 **문구 전체가 키와 같을 때** 자동으로 바꿈 → HTML은 한국어 그대로 쓰면 됨. 값을 끼워 넣는 문구만 `t('실패: {message}', { message })`. `translate="no"` 안쪽(번역 결과 등)은 안 건드림
   - 툴팁·background·provider는 `t()` 직접 호출 (content.js는 `t`라는 지역 변수가 있어 `tr`로 import). native host가 보내는 한국어 오류는 `retranslate()`가 템플릿과 맞춰 바꿈 (host는 화면 언어를 모름 → host를 다시 설치할 필요 없음)
-  - 어순: 팝업 "[한국어 ▾] 로 번역" ↔ 영어 "Translate into [한국어 ▾]" — `html[lang]`을 보고 `ui.css`에서 순서만 바꿈. manifest의 설명·단축키 이름만 Chrome 방식(`src/_locales/`)
-  - **새 UI 문구를 추가하면 영어 사전에도 추가.** 빠뜨리면 `tests/i18n.test.mjs`(코드의 `t('…')` 검사)나 e2e "English UI: … no Korean text left"가 실패. 언어 추가 = `UI_LANGS` + 각 사전에 그 언어 + `_locales/<언어>`
+  - 어순: 한국어·일본어는 "[한국어 ▾] 로 번역"(선택창이 앞), 나머지는 "Translate into [한국어 ▾]" — `html[lang]`을 보고 `ui.css`에서 순서만 바꿈. manifest의 설명·단축키 이름만 Chrome 방식(`src/_locales/`, `default_locale`은 en)
+  - **새 UI 문구를 추가하면 모든 locale 파일에 추가.** 빠뜨리면 `tests/i18n.test.mjs`(코드의 `t('…')`가 영어에 있는지, 모든 언어가 영어와 같은 키를 갖는지)나 e2e "English UI: … no Korean text left"가 실패
+  - 언어 추가: `locales/en.js`를 복사해 번역 → `UI_LANGS`에 추가 → 모음 파일 5개(`core/i18n/{pages,content,anthropic-api,chrome-builtin,claude-cli}.js`)에 import 한 줄씩 → `src/_locales/<언어>/messages.json`
+  - 영어 외 문구는 Claude가 작성했고 **원어민 검수는 안 됨** (2026-11-12)
 - claude는 content block마다 `assistant` 이벤트를 보냄 → host는 **text 블록이 든 assistant에서만** 완료 처리 (thinking만 든 이벤트에서 끝내 빈 번역이 나오던 버그, Haiku 5.5에서 발생)
 - `ui.css`에 전역 `[hidden] { display: none !important }` — `.grid2`처럼 display를 지정한 요소에 hidden이 안 먹던 문제
 - claude-cli 흐름: background가 `connectNative('dev.claude_tooltip_translate.cli')` 포트 1개를 계속 열고 요청을 id로 구분 → host가 프로세스 풀로 처리

@@ -1,0 +1,8 @@
+{
+  "extDescription": {
+    "message": "Mit der Maus über ein Wort fahren oder Text markieren, um ihn im Kontext zu übersetzen."
+  },
+  "cmdToggleHover": {
+    "message": "Hover-Übersetzung ein-/ausschalten"
+  }
+}

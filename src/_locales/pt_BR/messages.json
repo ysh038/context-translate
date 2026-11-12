@@ -1,0 +1,8 @@
+{
+  "extDescription": {
+    "message": "Passe o mouse sobre uma palavra ou selecione um texto para traduzi-lo de acordo com o contexto."
+  },
+  "cmdToggleHover": {
+    "message": "Ativar ou desativar a tradução ao passar o mouse"
+  }
+}

@@ -2,6 +2,7 @@
 import { buildPrompt } from '../core/prompts.js';
 import { ProviderError } from '../core/provider.js';
 import { t, addMessages } from '../core/i18n.js';
+import messages from '../core/i18n/anthropic-api.js';
 
 const headers = (apiKey) => ({
   'content-type': 'application/json',
@@ -121,20 +122,5 @@ export default {
   }
 };
 
-// label·hint는 보여 주는 쪽(팝업·설정·background)에서 현재 화면 언어로 바꾼다
-addMessages({
-  en: {
-    'Claude API (API 키)': 'Claude API (API key)',
-    '빠름 · 저렴 (권장)': 'Fast · cheap (recommended)',
-    '더 자연스러운 번역': 'More natural translation',
-    '가장 정확 · 비쌈': 'Most accurate · expensive',
-    'Claude API 키가 설정되지 않았습니다.': 'The Claude API key is not set.',
-    'API 키가 유효하지 않습니다. 설정에서 확인해 주세요.': 'The API key is not valid. Please check it in settings.',
-    '이 API 키로는 접근 권한이 없습니다.': 'This API key does not have access.',
-    '모델을 찾을 수 없습니다: {model}\n설정에서 모델을 다시 선택해 주세요.': 'Model not found: {model}\nPlease choose the model again in settings.',
-    '요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.': 'Rate limit exceeded. Please try again in a moment.',
-    'Anthropic 서버가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.': 'Anthropic servers are overloaded. Please try again in a moment.',
-    'Anthropic 서버 오류 ({status})': 'Anthropic server error ({status})',
-    '네트워크 오류: API에 연결할 수 없습니다.': 'Network error: could not reach the API.'
-  }
-});
+// 화면 문구 등록. label·hint·help는 보여 주는 쪽(팝업·설정·background)에서 현재 화면 언어로 바꾼다
+addMessages(messages);

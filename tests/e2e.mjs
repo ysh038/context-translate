@@ -83,8 +83,10 @@ async function runSuite(edition) {
   const lastContent = () => (cli ? lastReq().content : lastReq().messages?.[0].content) || '';
   try {
     let [sw] = ctx.serviceWorkers(); if (!sw) sw = await ctx.waitForEvent('serviceworker');
+    // 화면 언어는 기본이 브라우저 언어 → 아래 검사는 한국어로 고정 (다른 언어는 맨 끝에서).
+    // 잠깐 기다리는 이유: 설치 직후 확장이 첫 탭을 설정 페이지로 바꿀 수 있어(store는 그 시점에 키가 없음), 그게 끝난 뒤에 페이지를 열어야 goto가 끊기지 않는다
+    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'ko' })); await new Promise((r) => setTimeout(r, 700));
     if (expectId) check('personal build has fixed extension ID', sw.url().split('/')[2] === expectId);
-    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'ko' })); // 화면 언어는 기본이 브라우저 언어 → 아래 검사는 한국어로 고정 (영어는 맨 끝에서)
     if (!cli) await sw.evaluate((port) => chrome.storage.local.set({ apiKey: 'test-key', apiBase: `http://localhost:${port}` }), PORT);
     const page = (await ctx.pages())[0] || await ctx.newPage();
     await page.goto(`http://localhost:${PORT}/`);
@@ -328,13 +330,22 @@ async function runSuite(edition) {
     const enErr = await tipText();
     check('English UI: tooltip message in English', enErr.src === 'Selection' && enErr.body.includes('too long') && !/[가-힣]/.test(enErr.body), JSON.stringify(enErr));
     await clearTip();
+    // 다른 언어도: 일본어는 한국어처럼 "[언어] に翻訳" 순서 (언어 선택이 앞)
+    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'ja' }));
+    await pp.reload(); await pp.waitForTimeout(1000);
+    const jaLeft = await koreanLeft(pp);
+    const jaOrder = await pp.evaluate(() => ({ label: document.querySelector('.item.lang > span').getBoundingClientRect().x, sel: document.querySelector('#targetLang').getBoundingClientRect().x, text: document.querySelector('.item.lang > span').textContent, btn: document.querySelector('#openOptions').textContent, wide: document.documentElement.scrollWidth > 300 }));
+    check('Japanese UI: popup translated, language select comes before "に翻訳"', jaLeft.length === 0 && jaOrder.text === 'に翻訳' && jaOrder.sel < jaOrder.label && jaOrder.btn === '設定を開く' && !jaOrder.wide, JSON.stringify({ jaLeft, jaOrder }));
     // 설정 페이지에서 화면 언어를 고르면 바로 반영 / "브라우저 언어 따르기"는 브라우저 언어로
+    const uiChoices = await op.$$eval('#uiLang option', (os) => os.map((o) => o.value));
+    check('display language select lists every language', uiChoices[0] === 'auto' && ['ko', 'en', 'ja', 'zh-CN', 'zh-TW', 'es', 'fr', 'de', 'it', 'pt', 'ru'].every((l) => uiChoices.includes(l)), JSON.stringify(uiChoices));
     await op.bringToFront();
     await op.selectOption('#uiLang', 'ko'); await op.waitForTimeout(1000);
     check('display language select switches the page', (await op.title()).includes('설정') && (await op.inputValue('#uiLang')) === 'ko' && (await sw.evaluate(() => chrome.storage.local.get('uiLang'))).uiLang === 'ko');
     await op.selectOption('#uiLang', 'auto'); await op.waitForTimeout(1000);
     const browserLang = await sw.evaluate(() => chrome.i18n.getUILanguage());
-    check('default follows the browser language', (await op.getAttribute('html', 'lang')) === (browserLang.toLowerCase().startsWith('ko') ? 'ko' : 'en'), browserLang);
+    const base = browserLang.toLowerCase().split('-')[0]; // 화면 언어 목록에 없는 언어의 컴퓨터에서는 영어
+    check('default follows the browser language', (await op.getAttribute('html', 'lang')).split('-')[0] === (['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru'].includes(base) ? base : 'en'), browserLang);
   } finally {
     await ctx.close();
   }

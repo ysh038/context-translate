@@ -1,0 +1,8 @@
+{
+  "extDescription": {
+    "message": "將滑鼠懸停在單字上或選取文字,即可依上下文翻譯。"
+  },
+  "cmdToggleHover": {
+    "message": "開啟/關閉懸停翻譯"
+  }
+}

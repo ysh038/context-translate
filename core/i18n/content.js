@@ -1,27 +1,14 @@
-// 툴팁(content script) 문구 — 모든 페이지에 들어가는 스크립트라 여기에는 툴팁에 쓰는 것만 둔다
-export default {
-  en: {
-    '번역': 'Translate',
-    '복사': 'Copy',
-    '복사됨': 'Copied',
-    '닫기 (Esc)': 'Close (Esc)',
-    '설정 열기': 'Open settings',
-    '선택 번역': 'Selection',
-    '화면 고정 켜짐 — 번역창이 항상 이 자리에 뜹니다 (끌어서 위치 변경)\n누르면 해제: 글자 옆에 뜨기':
-      'Pinned — translations always appear here (drag to move)\nClick to unpin: show next to the text',
-    '화면에 고정 — 다음 번역부터 이 자리에 뜨게 하기\n(지금: 글자 옆에 뜸)':
-      'Pin to screen — show translations here from now on\n(now: next to the text)',
-    '요청 후 지난 시간': 'Time since the request',
-    '⏳ 오래 걸리고 있어요 — 번역이 이어서 나오는 중이에요': '⏳ Taking a while — the translation is still coming',
-    '⏳ 응답이 많이 늦어지고 있어요… (Esc로 닫기)': '⏳ The response is very slow… (Esc to close)',
-    '⏳ 오래 걸리고 있어요…': '⏳ Taking a while…',
-    '확장 프로그램이 업데이트되었습니다. 페이지를 새로고침해 주세요.': 'The extension was updated. Please reload the page.',
-    '\n(마우스를 멈춘 뒤 대기 {sec}s는 별도)': '\n(not counting the {sec}s wait after the mouse stops)',
-    '캐시': 'cached',
-    '이전 결과 재사용': 'Reused an earlier result',
-    '요청 → 완료 {total}': 'Request → done {total}',
-    ' (첫 글자 {first})': ' (first character {first})',
-    '선택한 텍스트가 너무 깁니다 ({n}자).\n{max}자 이하로 나눠서 선택해 주세요.':
-      'The selection is too long ({n} characters).\nPlease select {max} characters or fewer at a time.'
-  }
-};
+// 툴팁(content script) 문구 — 모든 페이지에 들어가는 스크립트라 툴팁에 쓰는 것만
+// 언어별 문구는 core/i18n/locales/<언어>.js 에 있고, 여기서는 이 묶음(content)만 모은다 → 번들에 필요한 문구만 들어간다
+import { content as en } from './locales/en.js';
+import { content as ja } from './locales/ja.js';
+import { content as zhCN } from './locales/zh-CN.js';
+import { content as zhTW } from './locales/zh-TW.js';
+import { content as es } from './locales/es.js';
+import { content as fr } from './locales/fr.js';
+import { content as de } from './locales/de.js';
+import { content as it } from './locales/it.js';
+import { content as pt } from './locales/pt.js';
+import { content as ru } from './locales/ru.js';
+
+export default { en, ja, 'zh-CN': zhCN, 'zh-TW': zhTW, es, fr, de, it, pt, ru };
