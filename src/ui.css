@@ -129,11 +129,13 @@ pre#testOut:empty { display: none; }
 .popup .card { background: var(--card); border-radius: 16px; padding: 4px 16px; margin-bottom: 8px; }
 .popup .card .item { min-height: 50px; }
 .popup .card .item + .item { border-top: 1px solid var(--line); }
+/* "[한국어 ▾]로 번역"처럼 한 문장으로 읽히게: 선택창이 앞, 고른 언어 이름 폭에 맞춤 */
+.popup .item.lang { justify-content: flex-start; gap: 6px; cursor: pointer; }
 .popup .item.lang select {
-  width: auto; max-width: 160px; background-color: transparent; padding: 6px 26px 6px 8px; margin-right: -8px;
-  text-align: right; text-align-last: right; font-weight: 600; color: var(--fg2); background-position: right 6px center;
+  width: auto; max-width: 190px; field-sizing: content; padding: 6px 30px 6px 12px; border-radius: 10px;
+  font-weight: 600; background-position: right 9px center;
 }
-.popup .item.lang select:hover { background-color: var(--field); }
+.popup .item.lang > span { white-space: nowrap; }
 .popup #status { margin: 10px 4px 12px; overflow-wrap: anywhere; }
 .popup #status.err { color: var(--err); }
 .popup button.full { padding: 13px 16px; }

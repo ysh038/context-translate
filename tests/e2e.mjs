@@ -273,7 +273,7 @@ async function runSuite(edition) {
     check('next translation uses the new model', !m1.hidden && m1.body.startsWith('강둑') && calls() === n3 + 1 && (cli ? r.model === 'sonnet' : r.model === sonnet && r.thinking?.type === 'between_tools'), JSON.stringify({ model: r.model, thinking: r.thinking }));
     await moveAway();
 
-    // 툴바 팝업: 번역할 언어 바꾸기 → 저장·설정 페이지 반영, 다음 요청이 새 언어로 (캐시 X), 시스템 프롬프트는 언어와 무관
+    // 툴바 팝업: "[언어]로 번역" 바꾸기 → 저장·설정 페이지 반영, 다음 요청이 새 언어로 (캐시 X), 시스템 프롬프트는 언어와 무관
     const langOpts = await pp.$$eval('#targetLang option', (os) => os.map((o) => o.value));
     check('popup lists target languages, current one selected', langOpts.length >= 20 && langOpts.includes('ja') && (await pp.inputValue('#targetLang')) === 'ko', JSON.stringify(langOpts));
     const sysBefore = cli ? null : JSON.stringify(lastReq().system);

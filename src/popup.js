@@ -71,7 +71,7 @@ function render(s) {
   renderStatus(s);
 }
 
-// 번역할 언어: 저장값이 목록에 없으면(예전 코드 등) 끝에 붙여 보여줌
+// 이 언어로 번역(목표 언어): 저장값이 목록에 없으면(예전 코드 등) 끝에 붙여 보여줌
 function fillLangs(s) {
   const sel = $('targetLang');
   sel.textContent = '';
