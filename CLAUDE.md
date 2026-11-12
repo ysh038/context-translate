@@ -6,7 +6,7 @@
 
 ## 핵심 요구사항
 - 속도가 최우선. 단, 다의어는 앞뒤 문맥을 보고 적절히 의역해야 함 → 속도와 의역 품질의 균형이 핵심 설계 포인트
-- UI 문구는 한국어. 기본 번역 방향: → 한국어 (이미 한국어면 → 영어)
+- UI 문구는 한국어. 기본 번역 방향: → 한국어. 이미 한국어인 글(한글로만 된 단어·선택 구간)은 번역하지 않음 — 한국어로 번역하게 해 뒀다는 건 한국어를 읽는 사람이라는 뜻 (2026-11-12 사용자 결정, 예전엔 → 영어)
 
 ## 현재 상태 (0단계 완료 + 1단계 claude -p 엔진 동작)
 ```
@@ -27,6 +27,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
 - background: port 1개 = 요청 1개(disconnect 시 abort). 요청 `{source:'hover'|'selection', mode, text, context, title}` → `engineFor(source)`로 provider 선택 → `available()` → 캐시(키에 provider id·cacheTag 포함) → `translate()`
 - 설정 `hoverEngine` / `selectionEngine`: 저장된 id가 에디션에 없으면 첫 provider로 대체. 옵션 페이지에 엔진 선택 + 사용 가능 여부 표시
 - content.js는 `CONTENT_KEYS`만 읽음(API 키를 content script로 가져가지 않음)
+- 드래그 번역 기본값 = 버튼 방식 (2026-11-12 사용자 결정): `selectionMode` 기본 `button` — 드래그·더블클릭하면 버튼(`.fab`)만 뜨고 눌러야 요청이 나감. 버튼은 18px 둥근 번역 아이콘(누를 수 있는 범위 28px, 올리면 1.2배)이고 `fabSpot()`이 **드래그를 끝낸 쪽 글자 끝의 위쪽**에 둠(왼쪽·위로 드래그했으면 선택 앞쪽 끝, 입력칸 안 선택은 마우스 옆). Shadow DOM 안 absolute라 페이지 글을 밀지 않음. 복사하려던 드래그까지 번역해 구독 사용량을 쓰던 문제 때문. hover는 그대로 바로 번역. `auto`(바로 번역)는 설정에서 선택. e2e는 대부분 `auto`로 돌리고 버튼 방식은 따로 확인
 - 드래그 최대 `MAX_SELECTION` = 20,000자. 넘으면 툴팁에 안내 (예전엔 5,000자 초과를 조용히 무시해서 "많이 선택하면 아예 안 됨"으로 보였음)
 - 툴팁 오른쪽 위 시간은 **content script에서** 요청 시작부터 측정 (확장 내부 통신 포함, hover 대기는 제외하고 title에 따로 표시). 요청 중엔 0.1초마다 `1.2s`처럼 실시간 갱신, 끝나면 최종 시간 하나만 (첫 글자 시간은 title에). `SLOW_MS`(3초) 넘으면 시간이 강조색 + 본문 아래 ⏳ 안내(글자가 나오는 중인지, 10초 넘게 무응답인지에 따라 문구 다름), 완료·오류·취소 시 사라짐
 - 툴팁 이동·고정 (2026-11-06): 글자(`.body`, `.slow`)·버튼이 아닌 곳을 pointer로 끌면 이동 → `tip.detached`(viewport 좌표 `fx/fy`, `position: fixed`). 옮긴 창은 hover여도 마우스가 떠나거나 스크롤해도 안 닫힘. 📌(`.pin`) 켜면 `tipPinned {x,y}`를 storage에 저장 → 모든 새 툴팁이 그 위치(fixed)에, 고정 중 끌면 위치 갱신, 끄면 다음부터 글자 옆(absolute). 고정 안 한 채 끌면 📌가 강조색으로 깜빡여 고정할 수 있음을 알림. 창 크기가 바뀌면 화면 안으로 clamp
@@ -39,16 +40,22 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
   - claude-cli: `haiku`/`sonnet`/`opus` 별칭(항상 최신). 실측 2026-11-06 대기 프로세스·단어 1개: 세 모델 모두 완성 ~1.2~1.7s, Opus는 구독 사용량을 더 씀
   - anthropic-api: `claude-haiku-5-5`/`claude-sonnet-5-5`/`claude-opus-5-5`. `requestOptions()`: Haiku는 thinking disabled, Sonnet은 `between_tools`(disabled는 400), Opus는 thinking을 못 끄므로 effort low + max_tokens 하한 4000. 5.5 세대는 temperature를 보내면 400이라 안 보냄 — **실제 API 키로는 미검증**
 - 언어 (2026-11-10): `LANGS` 20개, 원문 언어는 LLM이 자동 판단. 목표 언어는 설정 페이지("이 언어로 번역") + **툴바 팝업 select**("[한국어 ▾]로 번역" — 선택창이 앞, 한 문장으로 읽힘)에서 변경. 예전 문구 "번역할 언어"는 "한국어를 번역한다"로도 읽혀서 바꿈 (2026-11-12). 프롬프트의 **시스템 부분에는 언어를 넣지 않고** user 메시지 끝(`Answer in:` / `<target_language>`)에 붙임 → 언어를 바꿔도 claude-cli 대기 프로세스(모델·시스템 프롬프트별)를 그대로 재사용
+- 결과 언어 글자로만 된 글은 번역 안 함 (2026-11-12): `onlyTargetScript(text, lang)`(`core/settings.js`) — 글자(`\p{L}`)가 모두 결과 언어 문자면 true. ko 한글 / ja 가나+한자(가나가 1자는 있어야 함) / zh 한자 / ru·uk 키릴 / th / hi / ar, 숫자·문장부호·이모지는 글자로 안 침. content.js `skipAsTarget()`이 hover·드래그·더블클릭 모두에서 요청도 툴팁도 없이 건너뜀. **다른 글자가 하나라도 섞이면(예: "React 컴포넌트", "API를", 한자 병기) 통째로 결과 언어로 번역** (사용자 결정)
+  - `fallbackLang`("이미 그 언어라면 대신") 기본값 `none` = 번역 안 함. 언어를 골라 둔 사람만 그런 글이 그 언어로 번역됨: 답할 언어는 `buildPrompt`가 직접 정해 `Answer in: English`처럼 보냄(모델에게 "이미 한국어면…" 조건을 묻지 않음). `hoverSkipTarget` 토글은 이때만 설정 페이지에 보이고 의미가 있음(켜져 있으면 hover는 건너뛰고 드래그만 번역)
+  - 한계: 라틴 문자 언어(en·es·fr…)가 결과 언어면 글자로 구분할 수 없어 건너뛰지 않음(대신 언어를 고른 경우에만 예전처럼 "(if … is already X, … instead)"를 모델에게 맡김). 같은 문자를 쓰는 다른 언어(ru↔uk, 결과 언어가 중국어일 때 한자만 있는 일본어 단어)도 구분 못 함
+  - 이미 상당 부분이 결과 언어인 섞인 글(`mostlyTarget()`: 문장 번역이고 결과 언어 글자가 30% 이상)은 모델이 **반대로 영어로 번역**하곤 함 — "한국어를 한국어로"는 할 일이 없어서. 2026-11-12 실측(GeekNews 문단, 실제 claude): Haiku 17번 중 5번 뒤집힘, 문맥을 함께 보내면 문단을 빼먹거나 더 자주 뒤집힘, Opus는 2번 모두 정상. 프롬프트로는 못 막음(시스템 프롬프트에 "이미 결과 언어인 부분은 그대로" 규칙이나 user 메시지 `<note>`를 넣으면 Haiku가 혼잣말을 덧붙이거나 claude -p가 붙인 환경 정보·system-reminder를 번역해 내놓음) → **코드로 막음**: ① 이런 글은 `buildPrompt`가 문맥을 빼고 보냄 ② background가 답을 다 받은 뒤 `wrongLanguage()`(답의 결과 언어 글자 비율이 원문의 절반 미만)로 검사해 뒤집혔으면 다시 시도(모두 3번), 그래도면 "번역이 다른 언어로 나와서 표시하지 않았어요" 안내. 검사 대상 요청은 스트리밍 글자를 내보내지 않음(점 세 개만 보이다가 완성본 표시)
+  - 알려진 문제(미해결): 번역할 글이 아주 짧고 제목처럼 생기면(예: `How AI Text Watermarking Works\nLLM` 두 줄) Haiku가 그 글 대신 claude -p가 프롬프트에 붙이는 환경 정보(`# Environment …`)나 `<system-reminder>`(계정 이메일 포함)를 번역·출력하는 경우가 있음 (실측 5번 중 4번). 그래서 "영어 구만 뽑아 번역" 방식은 쓰지 않음
+  - 계기: 기본값에서 한글 hover는 원래 건너뛰었지만 드래그·더블클릭(`handleSelection`)에는 건너뛰기가 없었고 프롬프트가 "이미 한국어면 영어로"를 지시해서, 한글을 더블클릭하면 영어 번역이 나왔음
 - popup/options UI는 토스(TDS) 느낌: 회색 배경 + 흰 카드, 파랑 `#3182f6`, 체크박스는 토글 스위치, 해요체 문구. 툴팁(content.js Shadow DOM)은 아직 예전 색(Claude 주황) 그대로
 - popup/options는 엔진 상태를 직접 확인하지 않고 background에 `{type:'engineStatus'}`로 물음 (`core/status-client.js`). 직접 `available()`을 부르면 claude-cli가 그 페이지만의 native host와 대기 claude 프로세스를 따로 띄웠다 버림
 - 화면(UI) 언어 (2026-11-12): 기본은 **브라우저 언어 따르기** (`uiLang: 'auto'` — `chrome.i18n.getUILanguage()`). 설정 페이지 "화면 언어"에서 직접 고를 수 있음. 지원: 한국어·English·日本語·中文(简体/繁體)·Español·Français·Deutsch·Italiano·Português·Русский (`UI_LANGS`). 그 밖의 브라우저 언어는 영어. 아랍어 등 오른쪽→왼쪽 언어는 레이아웃 작업이 필요해 아직 없음
   - `core/i18n.js`: 코드·HTML에 적힌 **한국어 문구가 원문(키)**. 다른 언어는 `core/i18n/locales/<언어>.js`에서 찾고, 없으면 영어, 영어에도 없으면 한국어 그대로. **여기서 "문구 목록"은 메뉴·버튼·안내·오류 같은 화면 문구이고, 웹페이지 번역(claude -p)과는 무관**
-  - locale 파일 하나에 묶음 5개를 따로 export: `pages`(팝업·설정), `content`(툴팁), `anthropicApi`·`chromeBuiltin`·`claudeCli`(provider의 엔진 이름·모델 설명·오류). `core/i18n/pages.js`·`content.js`·`<provider id>.js`가 묶음별로 모든 언어를 모으고, 쓰는 쪽이 `addMessages`로 등록 → content script에는 툴팁 문구만(약 +17KB), store 번들에는 claude -p 문구가 안 들어감
+  - locale 파일 하나에 묶음 6개를 따로 export: `pages`(팝업·설정), `content`(툴팁), `engine`(background 공용 오류), `anthropicApi`·`chromeBuiltin`·`claudeCli`(provider의 엔진 이름·모델 설명·오류). `core/i18n/pages.js`·`content.js`·`engine.js`·`<provider id>.js`가 묶음별로 모든 언어를 모으고, 쓰는 쪽이 `addMessages`로 등록 → content script에는 툴팁 문구만(약 +17KB), store 번들에는 claude -p 문구가 안 들어감
   - 팝업·설정 페이지: `watchDom()`이 HTML과 코드가 넣는 글자·`title`·`aria-label`·`placeholder`를 **문구 전체가 키와 같을 때** 자동으로 바꿈 → HTML은 한국어 그대로 쓰면 됨. 값을 끼워 넣는 문구만 `t('실패: {message}', { message })`. `translate="no"` 안쪽(번역 결과 등)은 안 건드림
   - 툴팁·background·provider는 `t()` 직접 호출 (content.js는 `t`라는 지역 변수가 있어 `tr`로 import). native host가 보내는 한국어 오류는 `retranslate()`가 템플릿과 맞춰 바꿈 (host는 화면 언어를 모름 → host를 다시 설치할 필요 없음)
   - 어순: 한국어·일본어는 "[한국어 ▾] 로 번역"(선택창이 앞), 나머지는 "Translate into [한국어 ▾]" — `html[lang]`을 보고 `ui.css`에서 순서만 바꿈. manifest의 설명·단축키 이름만 Chrome 방식(`src/_locales/`, `default_locale`은 en)
   - **새 UI 문구를 추가하면 모든 locale 파일에 추가.** 빠뜨리면 `tests/i18n.test.mjs`(코드의 `t('…')`가 영어에 있는지, 모든 언어가 영어와 같은 키를 갖는지)나 e2e "English UI: … no Korean text left"가 실패
-  - 언어 추가: `locales/en.js`를 복사해 번역 → `UI_LANGS`에 추가 → 모음 파일 5개(`core/i18n/{pages,content,anthropic-api,chrome-builtin,claude-cli}.js`)에 import 한 줄씩 → `src/_locales/<언어>/messages.json`
+  - 언어 추가: `locales/en.js`를 복사해 번역 → `UI_LANGS`에 추가 → 모음 파일 6개(`core/i18n/{pages,content,engine,anthropic-api,chrome-builtin,claude-cli}.js`)에 import 한 줄씩 → `src/_locales/<언어>/messages.json`
   - 영어 외 문구는 Claude가 작성했고 **원어민 검수는 안 됨** (2026-11-12)
 - claude는 content block마다 `assistant` 이벤트를 보냄 → host는 **text 블록이 든 assistant에서만** 완료 처리 (thinking만 든 이벤트에서 끝내 빈 번역이 나오던 버그, Haiku 5.5에서 발생)
 - `ui.css`에 전역 `[hidden] { display: none !important }` — `.grid2`처럼 display를 지정한 요소에 hidden이 안 먹던 문제
@@ -60,7 +67,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
   - 터미널에서 바로 확인: `npm run host:test -- "문장"`
   - rate_limit_event(구독 한도 상태)는 `chrome.storage.session.cliRateLimit`에 저장만 해 둠 (표시는 아직)
 - 검사: `npm run check:store`(store 빌드 후 nativeMessaging·manifest key·`claude-cli`/`connectNative`/`claude -p` 문자열 검사). `build.mjs`도 store 에디션에 개인용 전용 provider가 있으면 빌드 거부
-- `npm test` = check:store + test:host(21개, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(56개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
+- `npm test` = test:unit(프롬프트·문자 판별) + check:store + test:host(21개, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(125개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/결과 언어 글 건너뛰기(한글만·섞인 글·대신 언어)/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
   - 확장 로드 시 headless는 `channel: 'chromium'` 필요
   - Chromium은 `<user-data-dir>/NativeMessagingHosts/`의 host manifest를 읽음 → 테스트는 임시 프로필에 등록 (사용자 Chrome 설정 안 건드림)
 - CI 설정 파일은 아직 없음 → 원격 저장소 생기면 `npm ci && npx playwright install chromium && npm test`

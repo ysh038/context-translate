@@ -2,10 +2,12 @@ import { DEFAULTS } from '../core/settings.js';
 import { engineFor } from '../core/engines.js';
 import { ProviderError } from '../core/provider.js';
 import { cacheGet, cacheSet } from '../core/cache.js';
-import { tidyWordAnswer } from '../core/prompts.js';
-import { t, initUiLang } from '../core/i18n.js';
+import { tidyWordAnswer, mostlyTarget, wrongLanguage } from '../core/prompts.js';
+import { t, initUiLang, addMessages } from '../core/i18n.js';
+import messages from '../core/i18n/engine.js';
 
 // 화면 언어 (오류·엔진 이름 문구). 서비스워커가 다시 뜰 때마다 설정을 읽고, 바뀌면 따라간다
+addMessages(messages);
 const uiReady = initUiLang();
 
 /* ───────────── 콘텐츠 스크립트와 통신 (port 1개 = 요청 1개) ─────────────
@@ -38,16 +40,24 @@ chrome.runtime.onConnect.addListener((port) => {
     const t0 = performance.now();
     let ttft = 0, lastPost = 0;
     const tidy = (t) => (req2.mode === 'word' ? tidyWordAnswer(t) : t); // 스트리밍 중에도 같은 형식으로 보이게
+    // 이미 상당 부분이 결과 언어인 섞인 글은 모델이 가끔 다른 언어(영어)로 뒤집어 번역한다 → 다 받은 뒤 검사해서
+    // 뒤집혔으면 다시 시도하고(모두 3번까지), 그래도 그러면 보여주지 않는다. 검사 전에는 글자를 내보내지 않음(영어가 떴다 바뀌지 않게)
+    const guard = mostlyTarget(req2, s);
+    const run = () => provider.translate(req2, {
+      signal: ctrl.signal,
+      settings: s,
+      onDelta: (full) => {
+        const now = performance.now();
+        if (!ttft) ttft = now - t0;
+        if (!guard && now - lastPost > 30) { lastPost = now; post({ type: 'delta', full: tidy(full) }); } // 너무 잦은 렌더 방지
+      }
+    });
     try {
-      const text = await provider.translate(req2, {
-        signal: ctrl.signal,
-        settings: s,
-        onDelta: (full) => {
-          const now = performance.now();
-          if (!ttft) ttft = now - t0;
-          if (now - lastPost > 30) { lastPost = now; post({ type: 'delta', full: tidy(full) }); } // 너무 잦은 렌더 방지
-        }
-      });
+      let text = await run();
+      for (let tries = 1; guard && wrongLanguage(req2, s, text); tries++) {
+        if (tries >= 3) throw new ProviderError(t('번역이 다른 언어로 나와서 표시하지 않았어요.\n한 번 더 시도해 보세요.'), { code: 'WRONG_LANG' });
+        text = await run();
+      }
       const out = tidy(text.trim());
       if (out) cacheSet(key, out);
       const ms = performance.now() - t0;

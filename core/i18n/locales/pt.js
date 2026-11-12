@@ -49,13 +49,10 @@ export const pages = {
   '⌘ / Win 누른 채로 올리면': 'Ao passar o mouse segurando ⌘ / Win',
   '기다리는 시간': 'Tempo de espera',
   '마우스를 멈춘 뒤 번역을 시작하기까지': 'Do momento em que o mouse para até o início da tradução',
-  '번역할 언어로 된 단어는 건너뛰기': 'Pular palavras que já estão no idioma de destino',
-  '예: 한국어로 번역 중이면 한글 단어': 'ex.: palavras em coreano ao traduzir para o coreano',
   '다른 뜻도 함께 보기': 'Mostrar também outros significados',
   '끄면 조금 더 빨라요': 'Desativar deixa um pouco mais rápido',
   '드래그하면': 'Ao selecionar texto',
   '바로 번역': 'Traduzir na hora',
-  '[번역] 버튼을 눌러야 번역': 'Traduzir só ao clicar no botão [Traduzir]',
   '문맥 반영': 'Contexto',
   '앞뒤 문맥을 얼마나 함께 보낼까요?': 'Quanto contexto enviar',
   '보내지 않음 — 가장 빠름, 다의어 오역 가능': 'Nenhum — o mais rápido; pode errar palavras ambíguas',
@@ -146,4 +143,10 @@ export const claudeCli = {
   'Claude Code에 로그인되어 있지 않습니다.\n터미널에서 claude 를 실행해 로그인해 주세요.': 'Você não está conectado ao Claude Code.\nExecute claude em um terminal e faça login.',
   'Claude 구독 사용 한도에 도달했습니다.\n{message}': 'Você atingiu o limite de uso da sua assinatura do Claude.\n{message}',
   'claude -p 오류: {message}': 'Erro do claude -p: {message}'
+};
+
+// background 공용 문구 (엔진과 상관없는 오류) — src/background.js
+export const engine = {
+  '번역이 다른 언어로 나와서 표시하지 않았어요.\n한 번 더 시도해 보세요.':
+    'A tradução saiu em outro idioma, por isso não foi exibida.\nTente novamente.'
 };

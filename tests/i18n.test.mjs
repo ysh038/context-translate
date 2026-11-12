@@ -10,6 +10,7 @@ const pages = (await import('../core/i18n/pages.js')).default;
 const content = (await import('../core/i18n/content.js')).default;
 addMessages(pages);
 addMessages(content);
+addMessages((await import('../core/i18n/engine.js')).default);
 // provider는 불러오면 자기 문구를 등록한다
 for (const f of fs.readdirSync(path.join(ROOT, 'providers'))) if (f.endsWith('.js')) await import(`../providers/${f}`);
 

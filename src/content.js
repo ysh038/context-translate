@@ -1,4 +1,4 @@
-import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick } from '../core/settings.js';
+import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScript } from '../core/settings.js';
 
 import { t as tr, initUiLang, addMessages, localizeDom } from '../core/i18n.js';
 import messages from '../core/i18n/content.js';
@@ -14,24 +14,11 @@ import messages from '../core/i18n/content.js';
     chrome.storage.local.get(DEFAULTS, (v) => { S = { ...S, ...v }; });
     chrome.storage.onChanged.addListener((ch, area) => {
       if (area !== 'local') return;
-      for (const k in ch) if (k in DEFAULTS) S[k] = ch[k].newValue;
+      for (const k in ch) if (k in DEFAULTS) S[k] = ch[k].newValue ?? DEFAULTS[k]; // 지워진 값은 기본값으로
       if (ch.tipPinned) { updatePinBtn(); if (box && !box.hidden) schedulePlace(); }
       if (!S.hoverEnabled && tip.src === 'hover') hide();
     });
   } catch { return; }
-
-  // 목표 언어 문자 판별 (라틴 문자권은 구분 불가 → 판별 안 함)
-  const SCRIPT_RE = {
-    ko: /[가-힣ㄱ-ㆎ]/,
-    ja: /[぀-ヿ]/,
-    'zh-CN': /[一-鿿]/,
-    'zh-TW': /[一-鿿]/,
-    ru: /[Ѐ-ӿ]/,
-    uk: /[Ѐ-ӿ]/,
-    th: /[฀-๿]/,
-    hi: /[ऀ-ॿ]/,
-    ar: /[؀-ۿ]/
-  };
 
   // 드래그 번역 최대 길이. 넘으면 안내 표시 (예전엔 5000자 넘으면 조용히 무시 → "아예 안 됨"처럼 보였음)
   const MAX_SELECTION = 20000;
@@ -85,10 +72,16 @@ import messages from '../core/i18n/content.js';
     .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
     @keyframes b { 0%, 100% { opacity: .25; } 50% { opacity: .9; } }
     .caret::after { content: "▍"; color: var(--accent); animation: b 1s infinite; }
+    /* 드래그 번역 버튼: 선택한 글 끝 위쪽에 뜨는 작은 원. 페이지 글과 다른 층(absolute)이라 글을 밀지 않는다 */
     .fab {
-      cursor: pointer; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600;
-      background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.2); user-select: none;
+      all: unset; position: absolute; box-sizing: border-box; z-index: 1; cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.28);
+      animation: in .12s ease-out; transition: transform .1s;
     }
+    .fab::before { content: ""; position: absolute; inset: -5px; border-radius: 50%; } /* 누를 수 있는 범위는 28px */
+    .fab:hover { transform: scale(1.2); }
+    .fab svg { width: 12px; height: 12px; }
     [hidden] { display: none !important; }
   `;
 
@@ -118,7 +111,7 @@ import messages from '../core/i18n/content.js';
         <div class="body"></div>
         <div class="slow" hidden></div>
       </div>
-      <div class="fab" hidden>번역</div>`;
+      <button class="fab" type="button" title="번역" aria-label="번역" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h7"/><path d="M9 3v2c0 4.418-2.239 8-5 8"/><path d="M5 9c0 2.144 2.952 3.908 6.7 4"/><path d="M12 20l4-9 4 9"/><path d="M19.1 18h-6.2"/></svg></button>`;
     (document.body || document.documentElement).appendChild(host);
     box = root.querySelector('.box');
     elSrc = root.querySelector('.src');
@@ -462,7 +455,13 @@ import messages from '../core/i18n/content.js';
     return n === 1;
   }
 
-  const inTargetScript = (t) => { const re = SCRIPT_RE[S.targetLang]; return re ? re.test(t) : false; };
+  // 결과 언어 글자로만 된 글(예: 한국어로 번역 중일 때 한글로만 된 단어·문장)은 번역하지 않는다 — 요청도 툴팁도 없음.
+  // 다른 글자가 섞여 있으면 통째로 결과 언어로 번역. "이미 그 언어라면 대신"을 골라 둔 사람만 그 언어로 번역하고,
+  // 그때도 hover는 hoverSkipTarget이 켜져 있으면 건너뛴다 (라틴 문자 언어는 글자로 구분할 수 없어 해당 없음)
+  function skipAsTarget(text, src) {
+    if (!onlyTargetScript(text, S.targetLang)) return false;
+    return !fallbackOf(S) || (src === 'hover' && S.hoverSkipTarget);
+  }
 
   /* ───────────── 1) 마우스 오버 번역 ───────────── */
   let hoverTimer = 0, hideTimer = 0;
@@ -484,7 +483,7 @@ import messages from '../core/i18n/content.js';
     const key = w.word + '|' + w.start;
     if (tip.src === 'hover' && tip.key === key && !box.hidden) return;
     if (/^[\d\s.,:%\-+/]+$/.test(w.word)) return;
-    if (S.hoverSkipTarget && inTargetScript(w.word)) return;
+    if (skipAsTarget(w.word, 'hover')) return;
 
     translate({
       src: 'hover', mode: 'word', text: w.word,
@@ -543,6 +542,23 @@ import messages from '../core/i18n/content.js';
     setTimeout(() => handleSelection(x, y, target), 10);
   }, true);
 
+  // 번역 버튼 자리 (viewport 좌표): 드래그를 끝낸 쪽 글자 끝의 위쪽. 왼쪽으로·위로 드래그했으면 선택의 앞쪽 끝.
+  // 입력칸 안의 선택처럼 글자 위치를 알 수 없으면 마우스 옆
+  const FAB = 18;
+  function fabSpot(range, x, y) {
+    let px = x + 8, py = y + 12;
+    const rects = range ? [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0) : [];
+    if (rects.length) {
+      const sel = getSelection();
+      const back = sel.anchorNode === range.endContainer && sel.anchorOffset === range.endOffset;
+      const r = back ? rects[0] : rects.at(-1);
+      px = back ? r.left - FAB - 1 : r.right + 1;
+      py = r.top - FAB / 2 - 2;
+    }
+    const vw = document.documentElement.clientWidth;
+    return { x: Math.max(2, Math.min(px, vw - FAB - 2)), y: Math.max(2, py) };
+  }
+
   function handleSelection(x, y, target) {
     let text = '', range = null;
     const ae = document.activeElement;
@@ -557,6 +573,7 @@ import messages from '../core/i18n/content.js';
     text = text.trim();
     if (!text) return;
     if (/^[\d\s.,:%\-+/]+$/.test(text)) return;
+    if (skipAsTarget(text, 'selection')) return;
     const anchor = { left: x, width: 0, top: y - 12, bottom: y + 12 };
     if (text.length > MAX_SELECTION) {
       // 조용히 무시하지 않고 이유를 보여준다
@@ -585,9 +602,9 @@ import messages from '../core/i18n/content.js';
       if (tip.src === 'hover') hide();
       fab._pending = job;
       fab.hidden = false;
-      const hr = host.getBoundingClientRect();
-      fab.style.left = (x + 8 - hr.left) + 'px';
-      fab.style.top = (y + 12 - hr.top) + 'px';
+      const at = fabSpot(range, x, y), hr = host.getBoundingClientRect();
+      fab.style.left = (at.x - hr.left) + 'px';
+      fab.style.top = (at.y - hr.top) + 'px';
     } else {
       translate(job);
     }

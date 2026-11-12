@@ -22,7 +22,9 @@ const server = http.createServer((req, res) => {
       const j = JSON.parse(body); log.push({ headers: req.headers, body: j });
       res.writeHead(200, { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' });
       const isWord = j.messages[0].content.startsWith('Word:');
-      const out = isWord ? '강둑 (명사)\n은행 · 둑 · 비축' : '그녀는 강둑에 앉아 배들이 떠내려가는 것을 지켜보았다.';
+      const out = isWord ? '강둑 (명사)\n은행 · 둑 · 비축'
+        : j.messages[0].content.includes('FLIPALWAYS') ? 'This sentence is mostly Korean and only one word is English.' // 다른 언어로 뒤집힌 답 흉내
+          : '그녀는 강둑에 앉아 배들이 떠내려가는 것을 지켜보았다.';
       const parts = out.match(/.{1,4}/gs);
       res.write('event: message_start\ndata: {"type":"message_start"}\n\n');
       const delay = j.messages[0].content.includes('SLOWTEXT') ? 4000 : 0; // 느린 응답 흉내
@@ -36,6 +38,9 @@ const server = http.createServer((req, res) => {
   <p id="p1">She sat on the <b>bank</b> of the river and watched the boats drift by. Then she went home.</p>
   <p id="p2">The quick brown fox jumps over the lazy dog.</p>
   <p id="p3">한국어 문장은 무시되어야 합니다.</p>
+  <p id="p4">이 문장에는 English 단어가 섞여 있습니다.</p>
+  <p id="p5">최신 API를 사용합니다.</p>
+  <p id="p6">이 문장은 대부분 한국어이고 FLIPALWAYS 라는 낱말만 영어입니다.</p>
   <p id="long" style="font-size:4px">${'The river bank was quiet in the morning. '.repeat(170)}</p>
   <p id="slow">SLOWTEXT this one takes a while to answer.</p>
   <div style="height:1600px"></div>
@@ -83,12 +88,13 @@ async function runSuite(edition) {
   const lastContent = () => (cli ? lastReq().content : lastReq().messages?.[0].content) || '';
   try {
     let [sw] = ctx.serviceWorkers(); if (!sw) sw = await ctx.waitForEvent('serviceworker');
-    // 화면 언어는 기본이 브라우저 언어 → 아래 검사는 한국어로 고정 (다른 언어는 맨 끝에서).
-    // 잠깐 기다리는 이유: 설치 직후 확장이 첫 탭을 설정 페이지로 바꿀 수 있어(store는 그 시점에 키가 없음), 그게 끝난 뒤에 페이지를 열어야 goto가 끊기지 않는다
-    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'ko' })); await new Promise((r) => setTimeout(r, 700));
+    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'ko' })); // 화면 언어는 기본이 브라우저 언어 → 아래 검사는 한국어로 고정 (다른 언어는 맨 끝에서)
     if (expectId) check('personal build has fixed extension ID', sw.url().split('/')[2] === expectId);
     if (!cli) await sw.evaluate((port) => chrome.storage.local.set({ apiKey: 'test-key', apiBase: `http://localhost:${port}` }), PORT);
-    const page = (await ctx.pages())[0] || await ctx.newPage();
+    // 드래그 기본값은 "버튼을 눌러야 번역". 아래 시나리오 대부분은 바로 번역으로 돌리고, 버튼 방식은 따로 확인
+    await sw.evaluate(() => chrome.storage.local.set({ selectionMode: 'auto' }));
+    // 새 탭을 쓴다: 첫 탭은 설치 직후 확장이 설정 페이지로 바꿀 수 있음(store는 설치 시점에 아직 키가 없음) → goto가 가로채여 가끔 실패했음
+    const page = await ctx.newPage();
     await page.goto(`http://localhost:${PORT}/`);
     await page.waitForTimeout(500);
 
@@ -103,6 +109,7 @@ async function runSuite(edition) {
     const h1 = await tipText(); check('hover shows contextual meaning', h1 && !h1.hidden && h1.src === 'bank' && h1.body.startsWith('강둑'), JSON.stringify(h1));
     check('final time shown as seconds', /^\d+\.\ds$/.test(h1?.meta || ''), JSON.stringify(h1?.meta));
     check('context marks target word', /⟦bank⟧/.test(lastContent()));
+    check('word request names only the target language', lastContent().endsWith('\nAnswer in: Korean'), lastContent().slice(-80));
     if (!cli) {
       const b = lastReq();
       check('API request: latest Haiku, thinking off, no temperature', b.model === 'claude-haiku-5-5' && b.thinking?.type === 'disabled' && !('temperature' in b), JSON.stringify({ model: b.model, thinking: b.thinking, t: b.temperature }));
@@ -111,10 +118,76 @@ async function runSuite(edition) {
     await moveAway();
     const h2 = await tipText(); check('hover tooltip hides on leave', h2.hidden);
     // hover korean -> no request
-    const n0 = calls();
+    let n0 = calls();
     const k = await page.evaluate(() => { const b = document.querySelector('#p3').getBoundingClientRect(); return { x: b.x + 30, y: b.y + b.height / 2 }; });
     await page.mouse.move(k.x, k.y); await page.waitForTimeout(900);
     check('korean word hover skipped', calls() - n0 === 0);
+    // 결과 언어(한국어) 글자로만 된 글은 드래그·더블클릭해도 요청·툴팁 없음. 다른 글자가 섞이면 통째로 한국어로 번역
+    const rectOf = (id, word) => page.evaluate(([id, word]) => { const t = document.getElementById(id).firstChild; const i = word ? t.data.indexOf(word) : 0; const r = document.createRange(); r.setStart(t, i); r.setEnd(t, word ? i + word.length : t.data.length); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y + b.height / 2, w: b.width }; }, [id, word]);
+    const dragOver = async (b) => { await page.mouse.move(b.x + 1, b.y); await page.mouse.down(); await page.mouse.move(b.x + b.w - 1, b.y, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(1200); };
+    const selText = () => page.evaluate(() => getSelection().toString());
+    const k3 = await rectOf('p3');
+    await dragOver(k3);
+    check('korean-only drag: no request, no tooltip', (await selText()).includes('한국어 문장') && calls() === n0 && (await tipText()).hidden, await selText());
+    await clearTip();
+    const kw = await rectOf('p3', '문장은');
+    await page.mouse.dblclick(kw.x + kw.w / 2, kw.y); await page.waitForTimeout(900);
+    check('korean-only double-click: no request, no tooltip', (await selText()).includes('문장') && calls() === n0 && (await tipText()).hidden, await selText());
+    await clearTip();
+    await dragOver(await rectOf('p4'));
+    const mx = await tipText();
+    check('mixed korean+english drag is translated into the target language', !mx.hidden && mx.body.includes('강둑') && calls() === n0 + 1 && lastContent().includes('English 단어가') && lastContent().endsWith('<target_language>Korean</target_language>'), lastContent().slice(-100));
+    check('mostly-korean mixed text is sent without context', !lastContent().includes('<context>'), lastContent().slice(0, 80));
+    await clearTip();
+    // 대부분 한국어인 글의 답이 영어로 뒤집혀 나오면: 보여주지 않고 다시 시도(모두 3번) → 그래도 그러면 안내
+    const nW = calls();
+    await dragOver(await rectOf('p6')); await page.waitForTimeout(1500);
+    const wl = await tipText();
+    check('answer flipped to another language is not shown (3 tries, then a notice)', !wl.hidden && calls() === nW + 3 && wl.body.includes('다른 언어로') && !/sentence/.test(wl.body), JSON.stringify({ wl, n: calls() - nW }));
+    await clearTip();
+    n0 += 3;
+    const api = await rectOf('p5', 'API');
+    await page.mouse.move(api.x + api.w / 2 - 3, api.y); await page.mouse.move(api.x + api.w / 2, api.y); await page.waitForTimeout(1500);
+    check('mixed word hover (API를) is translated into the target language', calls() === n0 + 2 && lastContent().startsWith('Word: API') && lastContent().endsWith('\nAnswer in: Korean') && !(await tipText()).hidden, lastContent());
+    await moveAway();
+    // "이미 그 언어라면 대신"에서 언어를 고른 경우: 한글로만 된 글을 드래그하면 그 언어로, hover는 건너뛰기 토글을 따름
+    await sw.evaluate(() => chrome.storage.local.set({ fallbackLang: 'en' })); await page.waitForTimeout(150);
+    const nF = calls();
+    await page.mouse.move(k.x - 3, k.y); await page.mouse.move(k.x, k.y); await page.waitForTimeout(900);
+    check('fallback language chosen: korean hover still skipped', calls() === nF);
+    await dragOver(k3);
+    check('fallback language chosen: korean-only drag goes to that language', calls() === nF + 1 && lastContent().endsWith('<target_language>English</target_language>') && !(await tipText()).hidden, lastContent().slice(-100));
+    await clearTip();
+    await sw.evaluate(() => chrome.storage.local.set({ hoverSkipTarget: false })); await page.waitForTimeout(150);
+    await page.mouse.move(k.x - 3, k.y); await page.mouse.move(k.x, k.y); await page.waitForTimeout(1500);
+    check('fallback language chosen + skip off: korean hover goes to that language', calls() === nF + 2 && lastContent().endsWith('\nAnswer in: English'), lastContent().slice(-100));
+    await moveAway();
+    await sw.evaluate(() => chrome.storage.local.remove(['fallbackLang', 'hoverSkipTarget'])); await page.waitForTimeout(150);
+    const nR = calls();
+    await dragOver(k3);
+    check('settings removed: back to not translating korean', calls() === nR && (await tipText()).hidden);
+    await clearTip();
+    // 드래그 기본값(버튼 방식): 드래그하면 버튼만 뜨고 요청은 없음 → 버튼을 누르면 번역
+    await sw.evaluate(() => chrome.storage.local.remove('selectionMode')); await page.waitForTimeout(150);
+    const fabState = () => page.evaluate(() => { const f = document.querySelector('claude-tip-translate').shadowRoot.querySelector('.fab'); const r = f.getBoundingClientRect(); return { hidden: f.hidden, x: r.x, y: r.y, w: f.offsetWidth }; }); // w: 올렸을 때 커지는 효과를 뺀 원래 크기
+    const nB = calls();
+    const p1r = await rectOf('p1');
+    await dragOver({ ...p1r, w: 300 });
+    const fb1 = await fabState();
+    check('default drag mode: button appears, no request, no tooltip', !fb1.hidden && calls() === nB && (await tipText()).hidden, JSON.stringify(fb1));
+    check('button is a small circle at the end of the selection, above the text', fb1.w === 18 && Math.abs(fb1.x - (p1r.x + 300)) < 16 && fb1.y < p1r.y && p1r.y - fb1.y < 30, JSON.stringify({ fb1, p1r }));
+    await page.click('claude-tip-translate >> .fab'); await page.waitForTimeout(1200);
+    const fb2 = await tipText();
+    check('clicking the button translates the selection', (await fabState()).hidden && !fb2.hidden && fb2.src === '선택 번역' && calls() === nB + 1, JSON.stringify(fb2));
+    await clearTip();
+    await dragOver(k3);
+    check('default drag mode: korean-only drag shows no button', (await fabState()).hidden && calls() === nB + 1);
+    await clearTip();
+    await dragOver({ ...p1r, w: 300 });
+    await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+    check('Esc dismisses the button', (await fabState()).hidden && calls() === nB + 1);
+    await clearTip();
+    await sw.evaluate(() => chrome.storage.local.set({ selectionMode: 'auto' })); await page.waitForTimeout(150);
     // select sentence p1
     const p = await page.evaluate(() => { const b = document.querySelector('#p1').getBoundingClientRect(); return { x: b.x, y: b.y, height: b.height }; });
     const dragP1 = async () => { await page.mouse.move(p.x + 2, p.y + p.height / 2); await page.mouse.down(); await page.mouse.move(p.x + 500, p.y + p.height / 2, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(1200); };
@@ -247,6 +320,16 @@ async function runSuite(edition) {
     check('options model select lists latest-only choices', JSON.stringify(modelOpts) === JSON.stringify(cli ? ['haiku', 'sonnet', 'opus'] : ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5']), JSON.stringify(modelOpts));
     await op.click('#runTest'); await op.waitForTimeout(1500);
     check('options page test translation', (await op.textContent('#testOut')).includes('강둑'));
+    // "이미 그 언어라면 대신": 기본은 번역 안 함. 언어를 골라야 hover 건너뛰기 토글이 보임
+    const fbOpts = await op.$$eval('#fallbackLang option', (os) => os.map((o) => o.value));
+    check('options: "번역 안 함" is first and selected by default, skip toggle hidden', fbOpts[0] === 'none' && (await op.inputValue('#fallbackLang')) === 'none' && (await op.isHidden('#hoverSkipRow')), JSON.stringify(fbOpts.slice(0, 3)));
+    const nT = calls();
+    await op.fill('#testText', '한국어 문장입니다.'); await op.click('#runTest'); await op.waitForTimeout(500);
+    check('options test box does not translate target-language text', (await op.textContent('#testOut')).includes('번역하지 않아요') && calls() === nT, await op.textContent('#testOut'));
+    await op.selectOption('#fallbackLang', 'en'); await op.waitForTimeout(300);
+    check('options: choosing a language saves it and shows the skip toggle', (await sw.evaluate(() => chrome.storage.local.get('fallbackLang'))).fallbackLang === 'en' && (await op.isVisible('#hoverSkipRow')));
+    await op.selectOption('#fallbackLang', 'none'); await op.waitForTimeout(300);
+    check('options: back to "번역 안 함" hides the toggle again', (await op.isHidden('#hoverSkipRow')));
     if (providers.length > 1) {
       await op.selectOption('#selectionEngine', 'chrome-builtin'); await op.waitForTimeout(300);
       const st = await sw.evaluate(() => chrome.storage.local.get('selectionEngine'));
