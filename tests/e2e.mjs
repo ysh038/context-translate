@@ -89,7 +89,8 @@ async function runSuite(edition) {
     if (!cli) await sw.evaluate((port) => chrome.storage.local.set({ apiKey: 'test-key', apiBase: `http://localhost:${port}` }), PORT);
     // 드래그 기본값은 "버튼을 눌러야 번역". 아래 시나리오 대부분은 바로 번역으로 돌리고, 버튼 방식은 따로 확인
     await sw.evaluate(() => chrome.storage.local.set({ selectionMode: 'auto' }));
-    const page = (await ctx.pages())[0] || await ctx.newPage();
+    // 새 탭을 쓴다: 첫 탭은 설치 직후 확장이 설정 페이지로 바꿀 수 있음(store는 설치 시점에 아직 키가 없음) → goto가 가로채여 가끔 실패했음
+    const page = await ctx.newPage();
     await page.goto(`http://localhost:${PORT}/`);
     await page.waitForTimeout(500);
 
@@ -156,12 +157,13 @@ async function runSuite(edition) {
     await clearTip();
     // 드래그 기본값(버튼 방식): 드래그하면 버튼만 뜨고 요청은 없음 → 버튼을 누르면 번역
     await sw.evaluate(() => chrome.storage.local.remove('selectionMode')); await page.waitForTimeout(150);
-    const fabState = () => page.evaluate(() => { const f = document.querySelector('claude-tip-translate').shadowRoot.querySelector('.fab'); const r = f.getBoundingClientRect(); return { hidden: f.hidden, x: r.x, y: r.y, w: r.width }; });
+    const fabState = () => page.evaluate(() => { const f = document.querySelector('claude-tip-translate').shadowRoot.querySelector('.fab'); const r = f.getBoundingClientRect(); return { hidden: f.hidden, x: r.x, y: r.y, w: f.offsetWidth }; }); // w: 올렸을 때 커지는 효과를 뺀 원래 크기
     const nB = calls();
     const p1r = await rectOf('p1');
     await dragOver({ ...p1r, w: 300 });
     const fb1 = await fabState();
     check('default drag mode: button appears, no request, no tooltip', !fb1.hidden && calls() === nB && (await tipText()).hidden, JSON.stringify(fb1));
+    check('button is a small circle at the end of the selection, above the text', fb1.w === 18 && Math.abs(fb1.x - (p1r.x + 300)) < 16 && fb1.y < p1r.y && p1r.y - fb1.y < 30, JSON.stringify({ fb1, p1r }));
     await page.click('claude-tip-translate >> .fab'); await page.waitForTimeout(1200);
     const fb2 = await tipText();
     check('clicking the button translates the selection', (await fabState()).hidden && !fb2.hidden && fb2.src === '선택 번역' && calls() === nB + 1, JSON.stringify(fb2));

@@ -69,10 +69,16 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
     .dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
     @keyframes b { 0%, 100% { opacity: .25; } 50% { opacity: .9; } }
     .caret::after { content: "▍"; color: var(--accent); animation: b 1s infinite; }
+    /* 드래그 번역 버튼: 선택한 글 끝 위쪽에 뜨는 작은 원. 페이지 글과 다른 층(absolute)이라 글을 밀지 않는다 */
     .fab {
-      cursor: pointer; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600;
-      background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.2); user-select: none;
+      all: unset; position: absolute; box-sizing: border-box; z-index: 1; cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--accent); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.28);
+      animation: in .12s ease-out; transition: transform .1s;
     }
+    .fab::before { content: ""; position: absolute; inset: -5px; border-radius: 50%; } /* 누를 수 있는 범위는 28px */
+    .fab:hover { transform: scale(1.2); }
+    .fab svg { width: 12px; height: 12px; }
     [hidden] { display: none !important; }
   `;
 
@@ -96,7 +102,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
         <div class="body"></div>
         <div class="slow" hidden></div>
       </div>
-      <div class="fab" hidden>번역</div>`;
+      <button class="fab" type="button" title="번역" aria-label="번역" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h7"/><path d="M9 3v2c0 4.418-2.239 8-5 8"/><path d="M5 9c0 2.144 2.952 3.908 6.7 4"/><path d="M12 20l4-9 4 9"/><path d="M19.1 18h-6.2"/></svg></button>`;
     (document.body || document.documentElement).appendChild(host);
     box = root.querySelector('.box');
     elSrc = root.querySelector('.src');
@@ -526,6 +532,23 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
     setTimeout(() => handleSelection(x, y, target), 10);
   }, true);
 
+  // 번역 버튼 자리 (viewport 좌표): 드래그를 끝낸 쪽 글자 끝의 위쪽. 왼쪽으로·위로 드래그했으면 선택의 앞쪽 끝.
+  // 입력칸 안의 선택처럼 글자 위치를 알 수 없으면 마우스 옆
+  const FAB = 18;
+  function fabSpot(range, x, y) {
+    let px = x + 8, py = y + 12;
+    const rects = range ? [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0) : [];
+    if (rects.length) {
+      const sel = getSelection();
+      const back = sel.anchorNode === range.endContainer && sel.anchorOffset === range.endOffset;
+      const r = back ? rects[0] : rects.at(-1);
+      px = back ? r.left - FAB - 1 : r.right + 1;
+      py = r.top - FAB / 2 - 2;
+    }
+    const vw = document.documentElement.clientWidth;
+    return { x: Math.max(2, Math.min(px, vw - FAB - 2)), y: Math.max(2, py) };
+  }
+
   function handleSelection(x, y, target) {
     let text = '', range = null;
     const ae = document.activeElement;
@@ -569,9 +592,9 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
       if (tip.src === 'hover') hide();
       fab._pending = job;
       fab.hidden = false;
-      const hr = host.getBoundingClientRect();
-      fab.style.left = (x + 8 - hr.left) + 'px';
-      fab.style.top = (y + 12 - hr.top) + 'px';
+      const at = fabSpot(range, x, y), hr = host.getBoundingClientRect();
+      fab.style.left = (at.x - hr.left) + 'px';
+      fab.style.top = (at.y - hr.top) + 'px';
     } else {
       translate(job);
     }
