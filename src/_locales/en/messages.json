@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "Hover over a word or select text to translate it in context." },
+  "cmdToggleHover": { "message": "Turn hover translation on/off" }
+}

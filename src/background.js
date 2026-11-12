@@ -3,6 +3,10 @@ import { engineFor } from '../core/engines.js';
 import { ProviderError } from '../core/provider.js';
 import { cacheGet, cacheSet } from '../core/cache.js';
 import { tidyWordAnswer } from '../core/prompts.js';
+import { t, initUiLang } from '../core/i18n.js';
+
+// 화면 언어 (오류·엔진 이름 문구). 서비스워커가 다시 뜰 때마다 설정을 읽고, 바뀌면 따라간다
+const uiReady = initUiLang();
 
 /* ───────────── 콘텐츠 스크립트와 통신 (port 1개 = 요청 1개) ─────────────
  * 요청: { source: 'hover'|'selection', mode: 'word'|'text', text, context?, title? }
@@ -17,9 +21,9 @@ chrome.runtime.onConnect.addListener((port) => {
   const post = (m) => { if (alive) try { port.postMessage(m); } catch {} };
 
   port.onMessage.addListener(async (req) => {
-    const s = await chrome.storage.local.get(DEFAULTS);
+    const [s] = await Promise.all([chrome.storage.local.get(DEFAULTS), uiReady]);
     const provider = engineFor(req.source, s);
-    const engine = provider.label;
+    const engine = t(provider.label);
     const model = provider.describe?.(s) || '';
 
     const av = await provider.available(s).catch((e) => ({ ok: false, reason: e.message }));
@@ -61,7 +65,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'engineStatus') {
     // 엔진 상태 확인은 항상 여기(background)에서 — claude-cli는 이때 새 설정(모델)용 대기 프로세스도 띄움
     (async () => {
-      const s = await chrome.storage.local.get(DEFAULTS);
+      const [s] = await Promise.all([chrome.storage.local.get(DEFAULTS), uiReady]);
       const out = {};
       for (const src of ['hover', 'selection']) {
         const p = engineFor(src, s);

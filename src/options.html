@@ -61,6 +61,13 @@
   </section>
 
   <section>
+    <h2>화면 언어</h2>
+    <label class="field"><span>메뉴와 안내 문구에 쓰는 언어예요</span>
+      <select id="uiLang"><option value="auto">브라우저 언어 따르기</option></select>
+    </label>
+  </section>
+
+  <section>
     <h2>마우스 오버 번역</h2>
     <label class="item switch"><span>사용하기 <small class="muted">Alt+Shift+H로 켜고 끌 수 있어요</small></span><input id="hoverEnabled" type="checkbox"></label>
     <div class="grid2">
@@ -107,12 +114,12 @@
 
   <section>
     <h2>번역해 보기</h2>
-    <textarea id="testText" rows="2">She sat on the bank of the river and watched the boats drift by.</textarea>
+    <textarea id="testText" rows="2" translate="no">She sat on the bank of the river and watched the boats drift by.</textarea>
     <div class="inline">
       <button id="runTest" type="button">번역해 보기</button>
       <small id="testMeta" class="muted"></small>
     </div>
-    <pre id="testOut"></pre>
+    <pre id="testOut" translate="no"></pre>
     <p class="desc">드래그 번역 엔진으로 번역해요.</p>
   </section>
 </main>

@@ -136,6 +136,8 @@ pre#testOut:empty { display: none; }
   font-weight: 600; background-position: right 9px center;
 }
 .popup .item.lang > span { white-space: nowrap; }
+/* 영어는 어순이 반대: Translate into [한국어 ▾] */
+html[lang="en"] .popup .item.lang > span { order: -1; }
 .popup #status { margin: 10px 4px 12px; overflow-wrap: anywhere; }
 .popup #status.err { color: var(--err); }
 .popup button.full { padding: 13px 16px; }

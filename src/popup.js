@@ -1,6 +1,13 @@
 import { DEFAULTS, LANGS } from '../core/settings.js';
 import { engineFor, modelChoices } from '../core/engines.js';
 import { engineStatus } from '../core/status-client.js';
+import { t, initUiLang, addMessages, watchDom, localizePage } from '../core/i18n.js';
+import messages from '../core/i18n/pages.js';
+
+// 화면 언어: 먼저 브라우저 언어로 바로 바꾸고, 저장된 설정이 다르면 다시 바꾼다
+addMessages(messages);
+const uiReady = initUiLang(() => localizePage());
+watchDom();
 
 const $ = (id) => document.getElementById(id);
 const SOURCE_LABEL = { hover: '마우스 오버', selection: '드래그' };
@@ -22,7 +29,7 @@ function renderModels(s) {
     wrap.className = 'pmodel';
     const title = document.createElement('div');
     title.className = 'plabel';
-    title.textContent = groups.length > 1 ? `모델 · ${sources.map((x) => SOURCE_LABEL[x]).join('·')}` : '모델';
+    title.textContent = groups.length > 1 ? t('모델 · {list}', { list: sources.map((x) => t(SOURCE_LABEL[x])).join('·') }) : t('모델');
     const seg = document.createElement('div');
     seg.className = 'seg';
     seg.setAttribute('role', 'radiogroup');
@@ -57,11 +64,11 @@ async function renderStatus(s) {
   const st2 = await engineStatus();
   const bad = [st2.hover, st2.selection].find((c) => !c?.ok);
   if (bad) {
-    st.textContent = '⚠ ' + bad.reason + ' 설정을 확인하세요.';
+    st.textContent = t('⚠ {reason} 설정을 확인하세요.', { reason: bad.reason });
     st.className = 'small err';
   } else {
-    const [h, sel] = engines.map((p) => p.describe?.(s) || p.label);
-    st.textContent = h === sel ? h : `오버 ${h} · 드래그 ${sel}`;
+    const [h, sel] = engines.map((p) => p.describe?.(s) || t(p.label));
+    st.textContent = h === sel ? h : t('오버 {h} · 드래그 {sel}', { h, sel });
     st.className = 'small muted';
   }
 }
@@ -85,7 +92,7 @@ function fillLangs(s) {
 }
 
 (async () => {
-  const s = await chrome.storage.local.get(DEFAULTS);
+  const [s] = await Promise.all([chrome.storage.local.get(DEFAULTS), uiReady]);
   for (const id of ['hoverEnabled', 'selectionEnabled']) {
     $(id).checked = s[id];
     $(id).addEventListener('change', () => chrome.storage.local.set({ [id]: $(id).checked }));

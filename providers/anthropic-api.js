@@ -1,6 +1,7 @@
 // Anthropic Messages API (사용자 API 키, 스트리밍)
 import { buildPrompt } from '../core/prompts.js';
 import { ProviderError } from '../core/provider.js';
+import { t, addMessages } from '../core/i18n.js';
 
 const headers = (apiKey) => ({
   'content-type': 'application/json',
@@ -11,13 +12,13 @@ const headers = (apiKey) => ({
 
 function friendly(status, message, s) {
   switch (status) {
-    case 401: return new ProviderError('API 키가 유효하지 않습니다. 설정에서 확인해 주세요.', { code: 401, needsSetup: true });
-    case 403: return new ProviderError('이 API 키로는 접근 권한이 없습니다.', { code: 403 });
-    case 404: return new ProviderError(`모델을 찾을 수 없습니다: ${s.model}\n설정에서 모델을 다시 선택해 주세요.`, { code: 404, needsSetup: true });
-    case 429: return new ProviderError('요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.', { code: 429 });
-    case 529: return new ProviderError('Anthropic 서버가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.', { code: 529 });
+    case 401: return new ProviderError(t('API 키가 유효하지 않습니다. 설정에서 확인해 주세요.'), { code: 401, needsSetup: true });
+    case 403: return new ProviderError(t('이 API 키로는 접근 권한이 없습니다.'), { code: 403 });
+    case 404: return new ProviderError(t('모델을 찾을 수 없습니다: {model}\n설정에서 모델을 다시 선택해 주세요.', { model: s.model }), { code: 404, needsSetup: true });
+    case 429: return new ProviderError(t('요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.'), { code: 429 });
+    case 529: return new ProviderError(t('Anthropic 서버가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.'), { code: 529 });
   }
-  if (status >= 500) return new ProviderError(`Anthropic 서버 오류 (${status})`, { code: status });
+  if (status >= 500) return new ProviderError(t('Anthropic 서버 오류 ({status})', { status }), { code: status });
   return new ProviderError(message || `HTTP ${status}`, { code: status || 'ERR' });
 }
 
@@ -55,7 +56,7 @@ async function translate(req, { signal, onDelta = () => {}, settings: s }) {
     });
   } catch (e) {
     if (e.name === 'AbortError') throw e;
-    throw new ProviderError('네트워크 오류: API에 연결할 수 없습니다.', { code: 'NETWORK' });
+    throw new ProviderError(t('네트워크 오류: API에 연결할 수 없습니다.'), { code: 'NETWORK' });
   }
 
   if (!res.ok) {
@@ -105,7 +106,7 @@ export default {
   id: 'anthropic-api',
   label: 'Claude API (API 키)',
   async available(s) {
-    return s.apiKey ? { ok: true } : { ok: false, reason: 'Claude API 키가 설정되지 않았습니다.' };
+    return s.apiKey ? { ok: true } : { ok: false, reason: t('Claude API 키가 설정되지 않았습니다.') };
   },
   translate,
   cacheTag: (s) => s.model,
@@ -119,3 +120,21 @@ export default {
     ]
   }
 };
+
+// label·hint는 보여 주는 쪽(팝업·설정·background)에서 현재 화면 언어로 바꾼다
+addMessages({
+  en: {
+    'Claude API (API 키)': 'Claude API (API key)',
+    '빠름 · 저렴 (권장)': 'Fast · cheap (recommended)',
+    '더 자연스러운 번역': 'More natural translation',
+    '가장 정확 · 비쌈': 'Most accurate · expensive',
+    'Claude API 키가 설정되지 않았습니다.': 'The Claude API key is not set.',
+    'API 키가 유효하지 않습니다. 설정에서 확인해 주세요.': 'The API key is not valid. Please check it in settings.',
+    '이 API 키로는 접근 권한이 없습니다.': 'This API key does not have access.',
+    '모델을 찾을 수 없습니다: {model}\n설정에서 모델을 다시 선택해 주세요.': 'Model not found: {model}\nPlease choose the model again in settings.',
+    '요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.': 'Rate limit exceeded. Please try again in a moment.',
+    'Anthropic 서버가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.': 'Anthropic servers are overloaded. Please try again in a moment.',
+    'Anthropic 서버 오류 ({status})': 'Anthropic server error ({status})',
+    '네트워크 오류: API에 연결할 수 없습니다.': 'Network error: could not reach the API.'
+  }
+});
