@@ -17,7 +17,7 @@
     "host:test": "node native-host/host.mjs --selftest",
     "test:host": "node tests/host.test.mjs",
     "bench": "node scripts/bench.mjs",
-    "test:unit": "node tests/prompts.test.mjs"
+    "test:unit": "node tests/prompts.test.mjs && node tests/i18n.test.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

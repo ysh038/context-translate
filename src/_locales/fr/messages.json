@@ -1,0 +1,8 @@
+{
+  "extDescription": {
+    "message": "Survolez un mot ou sélectionnez du texte pour le traduire selon le contexte."
+  },
+  "cmdToggleHover": {
+    "message": "Activer ou désactiver la traduction au survol"
+  }
+}

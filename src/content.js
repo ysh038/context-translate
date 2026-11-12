@@ -1,5 +1,8 @@
 import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScript } from '../core/settings.js';
 
+import { t as tr, initUiLang, addMessages, localizeDom } from '../core/i18n.js';
+import messages from '../core/i18n/content.js';
+
 (() => {
   if (window.__claudeTipLoaded) return;
   window.__claudeTipLoaded = true;
@@ -83,6 +86,12 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
   `;
 
   let host, root, box, elSrc, elMeta, elBody, elSlow, fab, pinBtn;
+
+  // 화면 언어 (기본: 브라우저 언어). 바뀌면 이미 만들어 둔 툴팁의 고정 문구도 바꾼다
+  addMessages(messages);
+  const localizeStatic = () => { if (root) for (const el of root.querySelectorAll('.copy, .close, .fab')) localizeDom(el); };
+  initUiLang(() => { localizeStatic(); updatePinBtn(); }).then(localizeStatic);
+
   // detached: 사용자가 끌어서 옮긴 툴팁 → 화면(viewport)의 (fx, fy)에 고정, 글자에서 마우스가 떠나거나 스크롤해도 유지
   const tip = { src: null, mode: null, port: null, reqId: 0, text: '', done: false, anchor: null, key: null, wordRect: null, detached: false, fx: 0, fy: 0 };
   const PIN_SVG = '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.2 1.3a1 1 0 0 1 1.4 0l3.1 3.1a1 1 0 0 1-.3 1.6l-2.3 1-2 2 .5 2.6a1 1 0 0 1-.3.9l-.5.5a1 1 0 0 1-1.4 0L6.1 10.7 2.4 14.4a.7.7 0 1 1-1-1l3.7-3.7-2.3-2.3a1 1 0 0 1 0-1.4l.5-.5a1 1 0 0 1 .9-.3l2.6.5 2-2 1-2.3a1 1 0 0 1 .4-.4z"/></svg>';
@@ -115,6 +124,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
     pinBtn.addEventListener('click', togglePin);
     setupDrag();
     updatePinBtn();
+    localizeStatic();
     root.querySelector('.copy').addEventListener('click', copyText);
     fab.addEventListener('mousedown', (e) => e.preventDefault()); // 선택 해제 방지
     fab.addEventListener('click', () => {
@@ -178,7 +188,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
     elBody.appendChild(d);
     if (needsSetup) {
       const b = document.createElement('button');
-      b.className = 'link'; b.textContent = '설정 열기';
+      b.className = 'link'; b.textContent = tr('설정 열기');
       b.addEventListener('click', () => { try { chrome.runtime.sendMessage({ type: 'openOptions' }); } catch {} });
       elBody.appendChild(b);
     }
@@ -194,7 +204,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
       const ta = document.createElement('textarea'); ta.value = t; root.appendChild(ta); ta.select();
       document.execCommand('copy'); ta.remove();
     }
-    const b = root.querySelector('.copy'); b.textContent = '복사됨'; setTimeout(() => (b.textContent = '복사'), 900);
+    const b = root.querySelector('.copy'); b.textContent = tr('복사됨'); setTimeout(() => (b.textContent = tr('복사')), 900);
   }
 
   /* ───────────── 요청 ───────────── */
@@ -221,8 +231,8 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
     if (on) pinBtn.classList.remove('hint');
     pinBtn.setAttribute('aria-pressed', String(on));
     pinBtn.title = on
-      ? '화면 고정 켜짐 — 번역창이 항상 이 자리에 뜹니다 (끌어서 위치 변경)\n누르면 해제: 글자 옆에 뜨기'
-      : '화면에 고정 — 다음 번역부터 이 자리에 뜨게 하기\n(지금: 글자 옆에 뜸)';
+      ? tr('화면 고정 켜짐 — 번역창이 항상 이 자리에 뜹니다 (끌어서 위치 변경)\n누르면 해제: 글자 옆에 뜨기')
+      : tr('화면에 고정 — 다음 번역부터 이 자리에 뜨게 하기\n(지금: 글자 옆에 뜸)');
   }
 
   function savePin(pos) {
@@ -287,15 +297,15 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
     stopTimer();
     elMeta.className = 'meta';
     elMeta.textContent = '0.0s';
-    elMeta.title = '요청 후 지난 시간';
+    elMeta.title = tr('요청 후 지난 시간');
     timer = setInterval(() => {
       const ms = performance.now() - t0;
       elMeta.textContent = sec(ms);
       if (ms >= SLOW_MS) {
         elMeta.classList.add('late');
         const msg = tip.text
-          ? '⏳ 오래 걸리고 있어요 — 번역이 이어서 나오는 중이에요'
-          : ms >= 10000 ? '⏳ 응답이 많이 늦어지고 있어요… (Esc로 닫기)' : '⏳ 오래 걸리고 있어요…';
+          ? tr('⏳ 오래 걸리고 있어요 — 번역이 이어서 나오는 중이에요')
+          : ms >= 10000 ? tr('⏳ 응답이 많이 늦어지고 있어요… (Esc로 닫기)') : tr('⏳ 오래 걸리고 있어요…');
         if (elSlow.hidden || elSlow.textContent !== msg) { elSlow.textContent = msg; elSlow.hidden = false; schedulePlace(); }
       }
     }, 100);
@@ -314,7 +324,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
     pinBtn.classList.remove('hint');
     box.className = 'box ' + mode;
     box.hidden = false;
-    elSrc.textContent = mode === 'word' ? text : '선택 번역';
+    elSrc.textContent = mode === 'word' ? text : tr('선택 번역');
     elSrc.title = text;
     elMeta.textContent = '';
     stopTimer();
@@ -322,7 +332,7 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
 
     let port;
     try { port = chrome.runtime.connect({ name: 'translate' }); }
-    catch { showError('확장 프로그램이 업데이트되었습니다. 페이지를 새로고침해 주세요.'); return; }
+    catch { showError(tr('확장 프로그램이 업데이트되었습니다. 페이지를 새로고침해 주세요.')); return; }
     tip.port = port;
     const id = tip.reqId;
     // 시간은 여기(요청 시작 → 화면 표시)에서 잰다: 확장 내부 통신까지 포함, 마우스 멈춤 대기는 제외
@@ -339,13 +349,13 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
         tip.text = m.text; tip.done = true; render();
         const total = performance.now() - t0;
         const who = m.model || m.engine || ''; // provider.describe() (예: claude -p · haiku), 없으면 엔진 이름
-        const wait = src === 'hover' && S.hoverModifier === 'none' ? `\n(마우스를 멈춘 뒤 대기 ${(S.hoverDelay / 1000).toFixed(2)}s는 별도)` : '';
+        const wait = src === 'hover' && S.hoverModifier === 'none' ? tr('\n(마우스를 멈춘 뒤 대기 {sec}s는 별도)', { sec: (S.hoverDelay / 1000).toFixed(2) }) : '';
         if (m.cached) {
-          elMeta.textContent = '캐시';
-          elMeta.title = '이전 결과 재사용' + (who ? ' · ' + who : '');
+          elMeta.textContent = tr('캐시');
+          elMeta.title = tr('이전 결과 재사용') + (who ? ' · ' + who : '');
         } else {
           elMeta.textContent = sec(total);
-          elMeta.title = `요청 → 완료 ${sec(total)}` + (tFirst ? ` (첫 글자 ${sec(tFirst)})` : '') + (who ? ' · ' + who : '') + wait;
+          elMeta.title = tr('요청 → 완료 {total}', { total: sec(total) }) + (tFirst ? tr(' (첫 글자 {first})', { first: sec(tFirst) }) : '') + (who ? ' · ' + who : '') + wait;
         }
         try { port.disconnect(); } catch {}
         tip.port = null;
@@ -570,8 +580,8 @@ import { DEFAULTS as ALL_DEFAULTS, CONTENT_KEYS, pick, fallbackOf, onlyTargetScr
       cancel(); ensureUI(); fab.hidden = true;
       Object.assign(tip, { src: 'selection', mode: 'text', anchor, key: 'sel-too-long', wordRect: null, text: '', done: true, detached: false });
       box.className = 'box text'; box.hidden = false;
-      elSrc.textContent = '선택 번역'; elSrc.title = '';
-      showError(`선택한 텍스트가 너무 깁니다 (${text.length.toLocaleString()}자).\n${MAX_SELECTION.toLocaleString()}자 이하로 나눠서 선택해 주세요.`);
+      elSrc.textContent = tr('선택 번역'); elSrc.title = '';
+      showError(tr('선택한 텍스트가 너무 깁니다 ({n}자).\n{max}자 이하로 나눠서 선택해 주세요.', { n: text.length.toLocaleString(), max: MAX_SELECTION.toLocaleString() }));
       return;
     }
 

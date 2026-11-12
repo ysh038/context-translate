@@ -2,6 +2,14 @@ import { DEFAULTS, LANGS, EDITION, fallbackOf, onlyTargetScript } from '../core/
 import { PROVIDERS, engineFor, getProvider, modelChoices } from '../core/engines.js';
 import { listModels } from '../providers/anthropic-api.js';
 import { engineStatus } from '../core/status-client.js';
+import { t, initUiLang, addMessages, watchDom, localizePage, UI_LANGS } from '../core/i18n.js';
+import messages from '../core/i18n/pages.js';
+
+// 화면 언어: 먼저 브라우저 언어로 바로 바꾸고, 저장된 설정이 다르면 다시 바꾼다.
+// HTML의 한국어 문구와 코드가 넣는 문구는 watchDom이 바꾸고, 값을 끼워 넣는 문구만 t()를 쓴다
+addMessages(messages);
+const uiReady = initUiLang(() => localizePage());
+watchDom();
 
 const $ = (id) => document.getElementById(id);
 const FIELDS = ['apiKey', 'targetLang', 'fallbackLang', 'hoverEnabled', 'hoverModifier', 'hoverDelay',
@@ -40,7 +48,7 @@ function fillEngines() {
   }
 }
 
-const setStatus = (el, av) => { el.textContent = av?.ok ? '사용 가능' : '⚠ ' + (av?.reason || '알 수 없음'); el.className = 'badge ' + (av?.ok ? 'ok' : 'err'); };
+const setStatus = (el, av) => { el.textContent = av?.ok ? '사용 가능' : '⚠ ' + (av?.reason || t('알 수 없음')); el.className = 'badge ' + (av?.ok ? 'ok' : 'err'); };
 
 // 선택된 엔진이 지금 쓸 수 있는 상태인지 표시 (확인은 background가 함)
 async function refreshEngineStatus() {
@@ -78,7 +86,7 @@ function renderProviderSettings(s) {
     const label = document.createElement('label'); label.className = 'field';
     const span = document.createElement('span'); span.textContent = '모델';
     const sel = document.createElement('select'); sel.id = mc.key;
-    for (const c of mc.choices) sel.add(new Option(`${c.label} — ${c.hint}`, c.value));
+    for (const c of mc.choices) sel.add(new Option(`${c.label} — ${t(c.hint)}`, c.value));
     sel.value = mc.current;
     sel.addEventListener('change', async () => {
       await chrome.storage.local.set({ [mc.key]: sel.value });
@@ -158,7 +166,7 @@ $('loadModels').addEventListener('click', async () => {
     st.textContent = '연결 성공 · API 키가 유효합니다.';
     st.className = 'ok';
   } catch (e) {
-    st.textContent = '실패: ' + e.message;
+    st.textContent = t('실패: {message}', { message: e.message });
     st.className = 'err';
   }
 });
@@ -170,7 +178,7 @@ $('runTest').addEventListener('click', () => {
   meta.textContent = '';
   const lc = langChoice();
   if (onlyTargetScript(text, lc.targetLang) && !fallbackOf(lc)) { // 페이지에서도 이런 글은 번역하지 않는다
-    out.textContent = `이미 ${LANGS[lc.targetLang].label} 글자로만 된 글이라 번역하지 않아요.`;
+    out.textContent = t('이미 {lang} 글자로만 된 글이라 번역하지 않아요.', { lang: LANGS[lc.targetLang].label });
     return;
   }
   out.textContent = '…';
@@ -180,7 +188,7 @@ $('runTest').addEventListener('click', () => {
     else if (m.type === 'done') {
       out.textContent = m.text;
       const who = [m.engine, m.model].filter(Boolean).join(' · ');
-      meta.textContent = m.cached ? `캐시된 결과 · ${who}` : `첫 글자 ${m.ttft}ms · 전체 ${m.ms}ms · ${who}`;
+      meta.textContent = m.cached ? t('캐시된 결과 · {who}', { who }) : t('첫 글자 {ttft}ms · 전체 {ms}ms · {who}', { ttft: m.ttft, ms: m.ms, who });
       port.disconnect();
     } else if (m.type === 'error') {
       out.textContent = '⚠ ' + m.message;
@@ -190,4 +198,16 @@ $('runTest').addEventListener('click', () => {
   port.postMessage({ source: 'selection', mode: /\s/.test(text) ? 'text' : 'word', text });
 });
 
-init();
+// 화면 언어: 고르면 저장하고 페이지를 다시 그린다 (모든 문구에 반영되도록)
+async function initUiLangField() {
+  const el = $('uiLang');
+  for (const [code, label] of Object.entries(UI_LANGS)) el.add(new Option(label, code));
+  el.value = (await chrome.storage.local.get({ uiLang: DEFAULTS.uiLang })).uiLang;
+  el.addEventListener('change', async () => {
+    await chrome.storage.local.set({ uiLang: el.value });
+    location.reload();
+  });
+}
+
+uiReady.then(init);
+initUiLangField();

@@ -1,6 +1,8 @@
 // Anthropic Messages API (사용자 API 키, 스트리밍)
 import { buildPrompt } from '../core/prompts.js';
 import { ProviderError } from '../core/provider.js';
+import { t, addMessages } from '../core/i18n.js';
+import messages from '../core/i18n/anthropic-api.js';
 
 const headers = (apiKey) => ({
   'content-type': 'application/json',
@@ -11,13 +13,13 @@ const headers = (apiKey) => ({
 
 function friendly(status, message, s) {
   switch (status) {
-    case 401: return new ProviderError('API 키가 유효하지 않습니다. 설정에서 확인해 주세요.', { code: 401, needsSetup: true });
-    case 403: return new ProviderError('이 API 키로는 접근 권한이 없습니다.', { code: 403 });
-    case 404: return new ProviderError(`모델을 찾을 수 없습니다: ${s.model}\n설정에서 모델을 다시 선택해 주세요.`, { code: 404, needsSetup: true });
-    case 429: return new ProviderError('요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.', { code: 429 });
-    case 529: return new ProviderError('Anthropic 서버가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.', { code: 529 });
+    case 401: return new ProviderError(t('API 키가 유효하지 않습니다. 설정에서 확인해 주세요.'), { code: 401, needsSetup: true });
+    case 403: return new ProviderError(t('이 API 키로는 접근 권한이 없습니다.'), { code: 403 });
+    case 404: return new ProviderError(t('모델을 찾을 수 없습니다: {model}\n설정에서 모델을 다시 선택해 주세요.', { model: s.model }), { code: 404, needsSetup: true });
+    case 429: return new ProviderError(t('요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.'), { code: 429 });
+    case 529: return new ProviderError(t('Anthropic 서버가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.'), { code: 529 });
   }
-  if (status >= 500) return new ProviderError(`Anthropic 서버 오류 (${status})`, { code: status });
+  if (status >= 500) return new ProviderError(t('Anthropic 서버 오류 ({status})', { status }), { code: status });
   return new ProviderError(message || `HTTP ${status}`, { code: status || 'ERR' });
 }
 
@@ -55,7 +57,7 @@ async function translate(req, { signal, onDelta = () => {}, settings: s }) {
     });
   } catch (e) {
     if (e.name === 'AbortError') throw e;
-    throw new ProviderError('네트워크 오류: API에 연결할 수 없습니다.', { code: 'NETWORK' });
+    throw new ProviderError(t('네트워크 오류: API에 연결할 수 없습니다.'), { code: 'NETWORK' });
   }
 
   if (!res.ok) {
@@ -105,7 +107,7 @@ export default {
   id: 'anthropic-api',
   label: 'Claude API (API 키)',
   async available(s) {
-    return s.apiKey ? { ok: true } : { ok: false, reason: 'Claude API 키가 설정되지 않았습니다.' };
+    return s.apiKey ? { ok: true } : { ok: false, reason: t('Claude API 키가 설정되지 않았습니다.') };
   },
   translate,
   cacheTag: (s) => s.model,
@@ -119,3 +121,6 @@ export default {
     ]
   }
 };
+
+// 화면 문구 등록. label·hint·help는 보여 주는 쪽(팝업·설정·background)에서 현재 화면 언어로 바꾼다
+addMessages(messages);

@@ -19,6 +19,7 @@ export const DEFAULTS = {
   showAlternatives: true,    // 단어 번역 시 다른 뜻 표시
   tipPinned: null,           // 📌 화면 고정 위치 {x, y} (viewport px). null이면 글자 옆에 표시
   apiBase: 'https://api.anthropic.com', // UI에 노출 안 된 테스트용 오버라이드
+  uiLang: 'auto',            // 화면(UI) 언어: auto = 브라우저 언어 따르기 | ko | en (core/i18n.js)
   ...EDITION.defaults
 };
 

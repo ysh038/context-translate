@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "Context Translate",
   "version": "0.0.0",
-  "description": "단어에 마우스를 올리거나 드래그하면 문맥에 맞게 번역합니다.",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
   "permissions": [
     "storage"
   ],
@@ -43,7 +44,7 @@
       "suggested_key": {
         "default": "Alt+Shift+H"
       },
-      "description": "마우스 오버 번역 켜기/끄기"
+      "description": "__MSG_cmdToggleHover__"
     }
   }
 }

@@ -1,0 +1,8 @@
+{
+  "extDescription": {
+    "message": "単語にマウスを乗せるかテキストをドラッグすると、文脈に合わせて翻訳します。"
+  },
+  "cmdToggleHover": {
+    "message": "ホバー翻訳のオン/オフ"
+  }
+}

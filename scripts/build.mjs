@@ -10,7 +10,7 @@ import { PERSONAL_ONLY_PROVIDERS, PERSONAL_ONLY_PERMISSIONS } from './edition-ru
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'src');
-const STATIC = ['options.html', 'popup.html', 'ui.css', 'icons'];
+const STATIC = ['options.html', 'popup.html', 'ui.css', 'icons', '_locales']; // _locales: manifest 문구(설명·단축키 이름)만. 화면 문구는 core/i18n.js
 
 export const EDITIONS = fs.readdirSync(path.join(ROOT, 'editions'))
   .filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''));

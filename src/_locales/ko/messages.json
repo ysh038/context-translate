@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "단어에 마우스를 올리거나 드래그하면 문맥에 맞게 번역합니다." },
+  "cmdToggleHover": { "message": "마우스 오버 번역 켜기/끄기" }
+}

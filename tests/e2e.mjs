@@ -89,6 +89,7 @@ async function runSuite(edition) {
   const lastContent = () => (cli ? lastReq().content : lastReq().messages?.[0].content) || '';
   try {
     let [sw] = ctx.serviceWorkers(); if (!sw) sw = await ctx.waitForEvent('serviceworker');
+    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'ko' })); // 화면 언어는 기본이 브라우저 언어 → 아래 검사는 한국어로 고정 (다른 언어는 맨 끝에서)
     if (expectId) check('personal build has fixed extension ID', sw.url().split('/')[2] === expectId);
     if (!cli) await sw.evaluate((port) => chrome.storage.local.set({ apiKey: 'test-key', apiBase: `http://localhost:${port}` }), PORT);
     // 드래그 기본값은 "버튼을 눌러야 번역". 아래 시나리오 대부분은 바로 번역으로 돌리고, 버튼 방식은 따로 확인
@@ -369,7 +370,7 @@ async function runSuite(edition) {
     check('next translation uses the new model', !m1.hidden && m1.body.startsWith('강둑') && calls() === n3 + 1 && (cli ? r.model === 'sonnet' : r.model === sonnet && r.thinking?.type === 'between_tools'), JSON.stringify({ model: r.model, thinking: r.thinking }));
     await moveAway();
 
-    // 툴바 팝업: 번역할 언어 바꾸기 → 저장·설정 페이지 반영, 다음 요청이 새 언어로 (캐시 X), 시스템 프롬프트는 언어와 무관
+    // 툴바 팝업: "[언어]로 번역" 바꾸기 → 저장·설정 페이지 반영, 다음 요청이 새 언어로 (캐시 X), 시스템 프롬프트는 언어와 무관
     const langOpts = await pp.$$eval('#targetLang option', (os) => os.map((o) => o.value));
     check('popup lists target languages, current one selected', langOpts.length >= 20 && langOpts.includes('ja') && (await pp.inputValue('#targetLang')) === 'ko', JSON.stringify(langOpts));
     const sysBefore = cli ? null : JSON.stringify(lastReq().system);
@@ -391,6 +392,54 @@ async function runSuite(edition) {
       check('API Opus request: effort low, thinking not disabled, max_tokens floor', o.model === 'claude-opus-5-5' && o.output_config?.effort === 'low' && !o.thinking && o.max_tokens >= 4000, JSON.stringify({ oc: o.output_config, th: o.thinking, mt: o.max_tokens }));
       await clearTip();
     }
+
+    // 화면 언어: 영어로 바꾸면 설정 페이지·팝업·툴팁·오류 문구가 영어로. 언어 이름과 번역 결과(translate="no")는 그대로
+    const koreanLeft = (pg) => pg.evaluate(() => {
+      const skip = (el) => !!el.closest('[translate="no"], #targetLang, #fallbackLang, #uiLang, script, style');
+      const out = [];
+      const w = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (n.nodeType === 3) { if (/[가-힣]/.test(n.data) && !skip(n.parentElement)) out.push(n.data.trim()); }
+        else for (const a of ['title', 'aria-label', 'placeholder', 'alt']) if (/[가-힣]/.test(n.getAttribute(a) || '') && !skip(n)) out.push(`${a}=${n.getAttribute(a)}`);
+      }
+      return out;
+    });
+    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'en' }));
+    await op.reload(); await op.waitForTimeout(1000);
+    const opLeft = await koreanLeft(op);
+    check('English UI: options page has no Korean text left', opLeft.length === 0 && (await op.title()).includes('Settings') && (await op.getAttribute('html', 'lang')) === 'en', JSON.stringify(opLeft));
+    await op.click('#runTest'); await op.waitForTimeout(1500);
+    check('English UI: translation result is left alone', (await op.textContent('#testOut')).includes('강둑') && /First character \d+ms|Cached result/.test(await op.textContent('#testMeta')), await op.textContent('#testMeta'));
+    await pp.reload(); await pp.waitForTimeout(1000);
+    const ppLeft = await koreanLeft(pp);
+    const order = await pp.evaluate(() => ({ label: document.querySelector('.item.lang > span').getBoundingClientRect().x, sel: document.querySelector('#targetLang').getBoundingClientRect().x, text: document.querySelector('.item.lang > span').textContent }));
+    check('English UI: popup has no Korean text left, "Translate into" comes before the language', ppLeft.length === 0 && order.text === 'Translate into' && order.label < order.sel, JSON.stringify({ ppLeft, order }));
+    await page.bringToFront(); await page.reload(); await page.waitForTimeout(500);
+    await hoverBank(1500);
+    const enTip = await page.evaluate(() => { const r = document.querySelector('claude-tip-translate').shadowRoot; return { copy: r.querySelector('.copy').textContent, close: r.querySelector('.close').title, pin: r.querySelector('.pin').title, body: r.querySelector('.body').innerText }; });
+    check('English UI: tooltip buttons in English, translation untouched', enTip.copy === 'Copy' && enTip.close === 'Close (Esc)' && enTip.pin.startsWith('Pin to screen') && enTip.body.startsWith('강둑'), JSON.stringify(enTip));
+    await moveAway();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await selectAll('huge'); await page.waitForTimeout(500);
+    const enErr = await tipText();
+    check('English UI: tooltip message in English', enErr.src === 'Selection' && enErr.body.includes('too long') && !/[가-힣]/.test(enErr.body), JSON.stringify(enErr));
+    await clearTip();
+    // 다른 언어도: 일본어는 한국어처럼 "[언어] に翻訳" 순서 (언어 선택이 앞)
+    await sw.evaluate(() => chrome.storage.local.set({ uiLang: 'ja' }));
+    await pp.reload(); await pp.waitForTimeout(1000);
+    const jaLeft = await koreanLeft(pp);
+    const jaOrder = await pp.evaluate(() => ({ label: document.querySelector('.item.lang > span').getBoundingClientRect().x, sel: document.querySelector('#targetLang').getBoundingClientRect().x, text: document.querySelector('.item.lang > span').textContent, btn: document.querySelector('#openOptions').textContent, wide: document.documentElement.scrollWidth > 300 }));
+    check('Japanese UI: popup translated, language select comes before "に翻訳"', jaLeft.length === 0 && jaOrder.text === 'に翻訳' && jaOrder.sel < jaOrder.label && jaOrder.btn === '設定を開く' && !jaOrder.wide, JSON.stringify({ jaLeft, jaOrder }));
+    // 설정 페이지에서 화면 언어를 고르면 바로 반영 / "브라우저 언어 따르기"는 브라우저 언어로
+    const uiChoices = await op.$$eval('#uiLang option', (os) => os.map((o) => o.value));
+    check('display language select lists every language', uiChoices[0] === 'auto' && ['ko', 'en', 'ja', 'zh-CN', 'zh-TW', 'es', 'fr', 'de', 'it', 'pt', 'ru'].every((l) => uiChoices.includes(l)), JSON.stringify(uiChoices));
+    await op.bringToFront();
+    await op.selectOption('#uiLang', 'ko'); await op.waitForTimeout(1000);
+    check('display language select switches the page', (await op.title()).includes('설정') && (await op.inputValue('#uiLang')) === 'ko' && (await sw.evaluate(() => chrome.storage.local.get('uiLang'))).uiLang === 'ko');
+    await op.selectOption('#uiLang', 'auto'); await op.waitForTimeout(1000);
+    const browserLang = await sw.evaluate(() => chrome.i18n.getUILanguage());
+    const base = browserLang.toLowerCase().split('-')[0]; // 화면 언어 목록에 없는 언어의 컴퓨터에서는 영어
+    check('default follows the browser language', (await op.getAttribute('html', 'lang')).split('-')[0] === (['ko', 'en', 'ja', 'zh', 'es', 'fr', 'de', 'it', 'pt', 'ru'].includes(base) ? base : 'en'), browserLang);
   } finally {
     await ctx.close();
   }

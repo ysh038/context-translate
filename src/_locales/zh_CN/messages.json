@@ -1,0 +1,8 @@
+{
+  "extDescription": {
+    "message": "将鼠标悬停在单词上或选中文本,即可结合上下文翻译。"
+  },
+  "cmdToggleHover": {
+    "message": "开启/关闭悬停翻译"
+  }
+}

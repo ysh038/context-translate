@@ -6,6 +6,8 @@
 import { buildPrompt } from '../core/prompts.js';
 import { ProviderError } from '../core/provider.js';
 import { EDITION } from '../core/settings.js';
+import { t, retranslate, addMessages } from '../core/i18n.js';
+import messages from '../core/i18n/claude-cli.js';
 
 const HOST = EDITION.nativeHost;
 const PING_TIMEOUT_MS = 4000;
@@ -19,11 +21,22 @@ let seq = 0;
 const pending = new Map(); // id → { onDelta, resolve, reject }
 
 function hostErrorText(raw) {
-  if (/not found/i.test(raw)) return 'claude -p 중계 프로그램이 설치되지 않았습니다.\n터미널에서 프로젝트 폴더로 이동해 npm run host:install 을 실행한 뒤, 확장을 새로고침해 주세요.';
-  if (/forbidden/i.test(raw)) return '중계 프로그램이 이 확장을 허용하지 않습니다(확장 ID 불일치).\nnpm run build:personal 후 npm run host:install 을 다시 실행해 주세요.';
-  if (/failed to start/i.test(raw)) return '중계 프로그램을 시작하지 못했습니다.\nnpm run host:install 을 다시 실행해 주세요.';
-  return `claude -p 중계 프로그램 연결이 끊겼습니다: ${raw}\nnpm run host:install 을 다시 실행해 보세요.\n로그: ~/Library/Logs/claude-tooltip-translate/ (host.log, host.stderr.log)`;
+  if (/not found/i.test(raw)) return t('claude -p 중계 프로그램이 설치되지 않았습니다.\n터미널에서 프로젝트 폴더로 이동해 npm run host:install 을 실행한 뒤, 확장을 새로고침해 주세요.');
+  if (/forbidden/i.test(raw)) return t('중계 프로그램이 이 확장을 허용하지 않습니다(확장 ID 불일치).\nnpm run build:personal 후 npm run host:install 을 다시 실행해 주세요.');
+  if (/failed to start/i.test(raw)) return t('중계 프로그램을 시작하지 못했습니다.\nnpm run host:install 을 다시 실행해 주세요.');
+  return t('claude -p 중계 프로그램 연결이 끊겼습니다: {raw}\nnpm run host:install 을 다시 실행해 보세요.\n로그: ~/Library/Logs/claude-tooltip-translate/ (host.log, host.stderr.log)', { raw });
 }
+
+// native host(native-host/*.mjs)는 화면 언어를 모르고 한국어 문장을 보낸다 → 여기서 현재 언어로 바꾼다
+const HOST_MESSAGES = [
+  'claude 실행 파일을 찾을 수 없습니다: {path}\n터미널에서 npm run host:install 을 다시 실행해 주세요.',
+  'claude 실행 파일을 찾을 수 없습니다: {path}',
+  'claude가 {n}초 동안 응답하지 않습니다.',
+  'claude가 비정상 종료되었습니다: {detail}',
+  'claude 실행 오류',
+  '번역 대신 엉뚱한 내용이 나와서 표시하지 않았어요.\n한 번 더 시도해 보세요.'
+];
+const fromHost = (message) => retranslate(message, HOST_MESSAGES);
 
 function connect() {
   if (port) return port;
@@ -56,14 +69,14 @@ function onHostMessage(m) {
 }
 
 function toProviderError({ code, message = '' }) {
-  if (code === 'NO_CLAUDE' || code === 'LEAK') return new ProviderError(message, { code }); // host가 만든 안내 문구 그대로
+  if (code === 'NO_CLAUDE' || code === 'LEAK') return new ProviderError(fromHost(message), { code }); // host가 만든 안내 문구 (화면 언어로 바꿔서)
   if (/log ?in|authenticat|oauth|credential/i.test(code + ' ' + message)) {
-    return new ProviderError('Claude Code에 로그인되어 있지 않습니다.\n터미널에서 claude 를 실행해 로그인해 주세요.', { code: 'AUTH' });
+    return new ProviderError(t('Claude Code에 로그인되어 있지 않습니다.\n터미널에서 claude 를 실행해 로그인해 주세요.'), { code: 'AUTH' });
   }
   if (/rate.?limit|usage limit|limit reached/i.test(code + ' ' + message)) {
-    return new ProviderError(`Claude 구독 사용 한도에 도달했습니다.\n${message}`, { code: 'LIMIT' });
+    return new ProviderError(t('Claude 구독 사용 한도에 도달했습니다.\n{message}', { message }), { code: 'LIMIT' });
   }
-  return new ProviderError(`claude -p 오류: ${message || code}`, { code });
+  return new ProviderError(t('claude -p 오류: {message}', { message: fromHost(message) || code }), { code });
 }
 
 function ping() {
@@ -90,7 +103,7 @@ function warm(s) {
 async function available(s) {
   const m = await ping();
   if (!m) return { ok: false, reason: hostErrorText(lastError || 'not found') };
-  if (!m.ok) return { ok: false, reason: m.reason };
+  if (!m.ok) return { ok: false, reason: fromHost(m.reason) };
   warm(s);
   return { ok: true };
 }
@@ -137,3 +150,6 @@ export default {
   },
   help: '처음 한 번 터미널에서 프로젝트 폴더로 이동해 npm run host:install 을 실행해야 합니다. 본인 Claude 구독으로 claude -p를 호출합니다.'
 };
+
+// 화면 문구 등록. label·hint·help는 보여 주는 쪽(팝업·설정·background)에서 현재 화면 언어로 바꾼다
+addMessages(messages);
