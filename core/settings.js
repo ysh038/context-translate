@@ -13,7 +13,7 @@ export const DEFAULTS = {
   hoverSkipTarget: true,     // fallbackLang을 골랐을 때만 의미 있음: 결과 언어 글자로만 된 단어는 hover에서 건너뛰기
   hoverEngine: 'anthropic-api',     // 마우스 오버 번역에 쓸 provider id
   selectionEnabled: true,
-  selectionMode: 'auto',     // auto | button
+  selectionMode: 'button',   // button(기본: 드래그하면 버튼이 뜨고, 눌러야 번역) | auto(드래그하면 바로 번역)
   selectionEngine: 'anthropic-api', // 드래그(선택) 번역에 쓸 provider id
   contextMode: 'sentence',   // none | sentence | paragraph
   showAlternatives: true,    // 단어 번역 시 다른 뜻 표시

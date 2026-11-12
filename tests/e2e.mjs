@@ -87,6 +87,8 @@ async function runSuite(edition) {
     let [sw] = ctx.serviceWorkers(); if (!sw) sw = await ctx.waitForEvent('serviceworker');
     if (expectId) check('personal build has fixed extension ID', sw.url().split('/')[2] === expectId);
     if (!cli) await sw.evaluate((port) => chrome.storage.local.set({ apiKey: 'test-key', apiBase: `http://localhost:${port}` }), PORT);
+    // 드래그 기본값은 "버튼을 눌러야 번역". 아래 시나리오 대부분은 바로 번역으로 돌리고, 버튼 방식은 따로 확인
+    await sw.evaluate(() => chrome.storage.local.set({ selectionMode: 'auto' }));
     const page = (await ctx.pages())[0] || await ctx.newPage();
     await page.goto(`http://localhost:${PORT}/`);
     await page.waitForTimeout(500);
@@ -152,6 +154,26 @@ async function runSuite(edition) {
     await dragOver(k3);
     check('settings removed: back to not translating korean', calls() === nR && (await tipText()).hidden);
     await clearTip();
+    // 드래그 기본값(버튼 방식): 드래그하면 버튼만 뜨고 요청은 없음 → 버튼을 누르면 번역
+    await sw.evaluate(() => chrome.storage.local.remove('selectionMode')); await page.waitForTimeout(150);
+    const fabState = () => page.evaluate(() => { const f = document.querySelector('claude-tip-translate').shadowRoot.querySelector('.fab'); const r = f.getBoundingClientRect(); return { hidden: f.hidden, x: r.x, y: r.y, w: r.width }; });
+    const nB = calls();
+    const p1r = await rectOf('p1');
+    await dragOver({ ...p1r, w: 300 });
+    const fb1 = await fabState();
+    check('default drag mode: button appears, no request, no tooltip', !fb1.hidden && calls() === nB && (await tipText()).hidden, JSON.stringify(fb1));
+    await page.click('claude-tip-translate >> .fab'); await page.waitForTimeout(1200);
+    const fb2 = await tipText();
+    check('clicking the button translates the selection', (await fabState()).hidden && !fb2.hidden && fb2.src === '선택 번역' && calls() === nB + 1, JSON.stringify(fb2));
+    await clearTip();
+    await dragOver(k3);
+    check('default drag mode: korean-only drag shows no button', (await fabState()).hidden && calls() === nB + 1);
+    await clearTip();
+    await dragOver({ ...p1r, w: 300 });
+    await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+    check('Esc dismisses the button', (await fabState()).hidden && calls() === nB + 1);
+    await clearTip();
+    await sw.evaluate(() => chrome.storage.local.set({ selectionMode: 'auto' })); await page.waitForTimeout(150);
     // select sentence p1
     const p = await page.evaluate(() => { const b = document.querySelector('#p1').getBoundingClientRect(); return { x: b.x, y: b.y, height: b.height }; });
     const dragP1 = async () => { await page.mouse.move(p.x + 2, p.y + p.height / 2); await page.mouse.down(); await page.mouse.move(p.x + 500, p.y + p.height / 2, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(1200); };

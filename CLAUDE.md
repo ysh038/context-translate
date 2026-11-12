@@ -27,6 +27,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
 - background: port 1개 = 요청 1개(disconnect 시 abort). 요청 `{source:'hover'|'selection', mode, text, context, title}` → `engineFor(source)`로 provider 선택 → `available()` → 캐시(키에 provider id·cacheTag 포함) → `translate()`
 - 설정 `hoverEngine` / `selectionEngine`: 저장된 id가 에디션에 없으면 첫 provider로 대체. 옵션 페이지에 엔진 선택 + 사용 가능 여부 표시
 - content.js는 `CONTENT_KEYS`만 읽음(API 키를 content script로 가져가지 않음)
+- 드래그 번역 기본값 = 버튼 방식 (2026-11-12 사용자 결정): `selectionMode` 기본 `button` — 드래그·더블클릭하면 마우스 옆에 버튼(`.fab`)만 뜨고 눌러야 요청이 나감. 복사하려던 드래그까지 번역해 구독 사용량을 쓰던 문제 때문. hover는 그대로 바로 번역. `auto`(바로 번역)는 설정에서 선택. e2e는 대부분 `auto`로 돌리고 버튼 방식은 따로 확인
 - 드래그 최대 `MAX_SELECTION` = 20,000자. 넘으면 툴팁에 안내 (예전엔 5,000자 초과를 조용히 무시해서 "많이 선택하면 아예 안 됨"으로 보였음)
 - 툴팁 오른쪽 위 시간은 **content script에서** 요청 시작부터 측정 (확장 내부 통신 포함, hover 대기는 제외하고 title에 따로 표시). 요청 중엔 0.1초마다 `1.2s`처럼 실시간 갱신, 끝나면 최종 시간 하나만 (첫 글자 시간은 title에). `SLOW_MS`(3초) 넘으면 시간이 강조색 + 본문 아래 ⏳ 안내(글자가 나오는 중인지, 10초 넘게 무응답인지에 따라 문구 다름), 완료·오류·취소 시 사라짐
 - 툴팁 이동·고정 (2026-11-06): 글자(`.body`, `.slow`)·버튼이 아닌 곳을 pointer로 끌면 이동 → `tip.detached`(viewport 좌표 `fx/fy`, `position: fixed`). 옮긴 창은 hover여도 마우스가 떠나거나 스크롤해도 안 닫힘. 📌(`.pin`) 켜면 `tipPinned {x,y}`를 storage에 저장 → 모든 새 툴팁이 그 위치(fixed)에, 고정 중 끌면 위치 갱신, 끄면 다음부터 글자 옆(absolute). 고정 안 한 채 끌면 📌가 강조색으로 깜빡여 고정할 수 있음을 알림. 창 크기가 바뀌면 화면 안으로 clamp
@@ -55,7 +56,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
   - 터미널에서 바로 확인: `npm run host:test -- "문장"`
   - rate_limit_event(구독 한도 상태)는 `chrome.storage.session.cliRateLimit`에 저장만 해 둠 (표시는 아직)
 - 검사: `npm run check:store`(store 빌드 후 nativeMessaging·manifest key·`claude-cli`/`connectNative`/`claude -p` 문자열 검사). `build.mjs`도 store 에디션에 개인용 전용 provider가 있으면 빌드 거부
-- `npm test` = test:unit(프롬프트·문자 판별) + check:store + test:host(21개, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(109개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/결과 언어 글 건너뛰기(한글만·섞인 글·대신 언어)/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
+- `npm test` = test:unit(프롬프트·문자 판별) + check:store + test:host(21개, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(117개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/결과 언어 글 건너뛰기(한글만·섞인 글·대신 언어)/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
   - 확장 로드 시 headless는 `channel: 'chromium'` 필요
   - Chromium은 `<user-data-dir>/NativeMessagingHosts/`의 host manifest를 읽음 → 테스트는 임시 프로필에 등록 (사용자 Chrome 설정 안 건드림)
 - CI 설정 파일은 아직 없음 → 원격 저장소 생기면 `npm ci && npx playwright install chromium && npm test`
