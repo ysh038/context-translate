@@ -43,6 +43,8 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
 - 결과 언어 글자로만 된 글은 번역 안 함 (2026-11-12): `onlyTargetScript(text, lang)`(`core/settings.js`) — 글자(`\p{L}`)가 모두 결과 언어 문자면 true. ko 한글 / ja 가나+한자(가나가 1자는 있어야 함) / zh 한자 / ru·uk 키릴 / th / hi / ar, 숫자·문장부호·이모지는 글자로 안 침. content.js `skipAsTarget()`이 hover·드래그·더블클릭 모두에서 요청도 툴팁도 없이 건너뜀. **다른 글자가 하나라도 섞이면(예: "React 컴포넌트", "API를", 한자 병기) 통째로 결과 언어로 번역** (사용자 결정)
   - `fallbackLang`("이미 그 언어라면 대신") 기본값 `none` = 번역 안 함. 언어를 골라 둔 사람만 그런 글이 그 언어로 번역됨: 답할 언어는 `buildPrompt`가 직접 정해 `Answer in: English`처럼 보냄(모델에게 "이미 한국어면…" 조건을 묻지 않음). `hoverSkipTarget` 토글은 이때만 설정 페이지에 보이고 의미가 있음(켜져 있으면 hover는 건너뛰고 드래그만 번역)
   - 한계: 라틴 문자 언어(en·es·fr…)가 결과 언어면 글자로 구분할 수 없어 건너뛰지 않음(대신 언어를 고른 경우에만 예전처럼 "(if … is already X, … instead)"를 모델에게 맡김). 같은 문자를 쓰는 다른 언어(ru↔uk, 결과 언어가 중국어일 때 한자만 있는 일본어 단어)도 구분 못 함
+  - 이미 상당 부분이 결과 언어인 섞인 글(`mostlyTarget()`: 문장 번역이고 결과 언어 글자가 30% 이상)은 모델이 **반대로 영어로 번역**하곤 함 — "한국어를 한국어로"는 할 일이 없어서. 2026-11-12 실측(GeekNews 문단, 실제 claude): Haiku 17번 중 5번 뒤집힘, 문맥을 함께 보내면 문단을 빼먹거나 더 자주 뒤집힘, Opus는 2번 모두 정상. 프롬프트로는 못 막음(시스템 프롬프트에 "이미 결과 언어인 부분은 그대로" 규칙이나 user 메시지 `<note>`를 넣으면 Haiku가 혼잣말을 덧붙이거나 claude -p가 붙인 환경 정보·system-reminder를 번역해 내놓음) → **코드로 막음**: ① 이런 글은 `buildPrompt`가 문맥을 빼고 보냄 ② background가 답을 다 받은 뒤 `wrongLanguage()`(답의 결과 언어 글자 비율이 원문의 절반 미만)로 검사해 뒤집혔으면 다시 시도(모두 3번), 그래도면 "번역이 다른 언어로 나와서 표시하지 않았어요" 안내. 검사 대상 요청은 스트리밍 글자를 내보내지 않음(점 세 개만 보이다가 완성본 표시)
+  - 알려진 문제(미해결): 번역할 글이 아주 짧고 제목처럼 생기면(예: `How AI Text Watermarking Works\nLLM` 두 줄) Haiku가 그 글 대신 claude -p가 프롬프트에 붙이는 환경 정보(`# Environment …`)나 `<system-reminder>`(계정 이메일 포함)를 번역·출력하는 경우가 있음 (실측 5번 중 4번). 그래서 "영어 구만 뽑아 번역" 방식은 쓰지 않음
   - 계기: 기본값에서 한글 hover는 원래 건너뛰었지만 드래그·더블클릭(`handleSelection`)에는 건너뛰기가 없었고 프롬프트가 "이미 한국어면 영어로"를 지시해서, 한글을 더블클릭하면 영어 번역이 나왔음
 - popup/options UI는 토스(TDS) 느낌: 회색 배경 + 흰 카드, 파랑 `#3182f6`, 체크박스는 토글 스위치, 해요체 문구. 툴팁(content.js Shadow DOM)은 아직 예전 색(Claude 주황) 그대로
 - popup/options는 엔진 상태를 직접 확인하지 않고 background에 `{type:'engineStatus'}`로 물음 (`core/status-client.js`). 직접 `available()`을 부르면 claude-cli가 그 페이지만의 native host와 대기 claude 프로세스를 따로 띄웠다 버림
@@ -56,7 +58,7 @@ tests/      e2e.mjs, host.test.mjs, fake-claude.mjs(가짜 claude — 구독 사
   - 터미널에서 바로 확인: `npm run host:test -- "문장"`
   - rate_limit_event(구독 한도 상태)는 `chrome.storage.session.cliRateLimit`에 저장만 해 둠 (표시는 아직)
 - 검사: `npm run check:store`(store 빌드 후 nativeMessaging·manifest key·`claude-cli`/`connectNative`/`claude -p` 문자열 검사). `build.mjs`도 store 에디션에 개인용 전용 provider가 있으면 빌드 거부
-- `npm test` = test:unit(프롬프트·문자 판별) + check:store + test:host(21개, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(119개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/결과 언어 글 건너뛰기(한글만·섞인 글·대신 언어)/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
+- `npm test` = test:unit(프롬프트·문자 판별) + check:store + test:host(21개, 임시 HOME에 설치해 최소 환경 ping까지) + e2e(125개). e2e는 각 빌드의 기본 엔진으로 같은 시나리오를 돌림 — personal은 가짜 claude(native host 경유), store는 가짜 SSE 서버. hover/드래그/더블클릭/결과 언어 글 건너뛰기(한글만·섞인 글·대신 언어)/긴 선택/느린 응답/캐시/설정/팝업 모델 선택, store는 엔진 분리와 API 요청 형식(모델별 thinking 등)까지
   - 확장 로드 시 headless는 `channel: 'chromium'` 필요
   - Chromium은 `<user-data-dir>/NativeMessagingHosts/`의 host manifest를 읽음 → 테스트는 임시 프로필에 등록 (사용자 Chrome 설정 안 건드림)
 - CI 설정 파일은 아직 없음 → 원격 저장소 생기면 `npm ci && npx playwright install chromium && npm test`

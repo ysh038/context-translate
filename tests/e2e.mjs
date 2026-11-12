@@ -22,7 +22,9 @@ const server = http.createServer((req, res) => {
       const j = JSON.parse(body); log.push({ headers: req.headers, body: j });
       res.writeHead(200, { 'content-type': 'text/event-stream', 'access-control-allow-origin': '*' });
       const isWord = j.messages[0].content.startsWith('Word:');
-      const out = isWord ? '강둑 (명사)\n은행 · 둑 · 비축' : '그녀는 강둑에 앉아 배들이 떠내려가는 것을 지켜보았다.';
+      const out = isWord ? '강둑 (명사)\n은행 · 둑 · 비축'
+        : j.messages[0].content.includes('FLIPALWAYS') ? 'This sentence is mostly Korean and only one word is English.' // 다른 언어로 뒤집힌 답 흉내
+          : '그녀는 강둑에 앉아 배들이 떠내려가는 것을 지켜보았다.';
       const parts = out.match(/.{1,4}/gs);
       res.write('event: message_start\ndata: {"type":"message_start"}\n\n');
       const delay = j.messages[0].content.includes('SLOWTEXT') ? 4000 : 0; // 느린 응답 흉내
@@ -38,6 +40,7 @@ const server = http.createServer((req, res) => {
   <p id="p3">한국어 문장은 무시되어야 합니다.</p>
   <p id="p4">이 문장에는 English 단어가 섞여 있습니다.</p>
   <p id="p5">최신 API를 사용합니다.</p>
+  <p id="p6">이 문장은 대부분 한국어이고 FLIPALWAYS 라는 낱말만 영어입니다.</p>
   <p id="long" style="font-size:4px">${'The river bank was quiet in the morning. '.repeat(170)}</p>
   <p id="slow">SLOWTEXT this one takes a while to answer.</p>
   <div style="height:1600px"></div>
@@ -114,7 +117,7 @@ async function runSuite(edition) {
     await moveAway();
     const h2 = await tipText(); check('hover tooltip hides on leave', h2.hidden);
     // hover korean -> no request
-    const n0 = calls();
+    let n0 = calls();
     const k = await page.evaluate(() => { const b = document.querySelector('#p3').getBoundingClientRect(); return { x: b.x + 30, y: b.y + b.height / 2 }; });
     await page.mouse.move(k.x, k.y); await page.waitForTimeout(900);
     check('korean word hover skipped', calls() - n0 === 0);
@@ -132,8 +135,16 @@ async function runSuite(edition) {
     await clearTip();
     await dragOver(await rectOf('p4'));
     const mx = await tipText();
-    check('mixed korean+english drag is translated into the target language', !mx.hidden && calls() === n0 + 1 && lastContent().includes('English 단어가') && lastContent().endsWith('<target_language>Korean</target_language>'), lastContent().slice(-100));
+    check('mixed korean+english drag is translated into the target language', !mx.hidden && mx.body.includes('강둑') && calls() === n0 + 1 && lastContent().includes('English 단어가') && lastContent().endsWith('<target_language>Korean</target_language>'), lastContent().slice(-100));
+    check('mostly-korean mixed text is sent without context', !lastContent().includes('<context>'), lastContent().slice(0, 80));
     await clearTip();
+    // 대부분 한국어인 글의 답이 영어로 뒤집혀 나오면: 보여주지 않고 다시 시도(모두 3번) → 그래도 그러면 안내
+    const nW = calls();
+    await dragOver(await rectOf('p6')); await page.waitForTimeout(1500);
+    const wl = await tipText();
+    check('answer flipped to another language is not shown (3 tries, then a notice)', !wl.hidden && calls() === nW + 3 && wl.body.includes('다른 언어로') && !/sentence/.test(wl.body), JSON.stringify({ wl, n: calls() - nW }));
+    await clearTip();
+    n0 += 3;
     const api = await rectOf('p5', 'API');
     await page.mouse.move(api.x + api.w / 2 - 3, api.y); await page.mouse.move(api.x + api.w / 2, api.y); await page.waitForTimeout(1500);
     check('mixed word hover (API를) is translated into the target language', calls() === n0 + 2 && lastContent().startsWith('Word: API') && lastContent().endsWith('\nAnswer in: Korean') && !(await tipText()).hidden, lastContent());

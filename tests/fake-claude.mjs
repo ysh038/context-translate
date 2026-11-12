@@ -55,7 +55,9 @@ async function answer(content) {
     out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: '', signature: 'x' }] }, session_id: sid });
     await sleep(100);
   }
-  const text = content.startsWith('Word:') ? '강둑 (명사)\n은행 · 둑 · 비축' : '그녀는 강둑에 앉아 배들이 떠내려가는 것을 지켜보았다.';
+  const text = content.startsWith('Word:') ? '강둑 (명사)\n은행 · 둑 · 비축'
+    : content.includes('FLIPALWAYS') ? 'This sentence is mostly Korean and only one word is English.' // 다른 언어로 뒤집힌 답 흉내
+      : '그녀는 강둑에 앉아 배들이 떠내려가는 것을 지켜보았다.';
   out({ type: 'stream_event', event: { type: 'message_start', message: { model: 'claude-haiku-fake', content: [] } }, session_id: sid });
   out({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }, session_id: sid });
   for (const part of text.match(/.{1,4}/gs)) {

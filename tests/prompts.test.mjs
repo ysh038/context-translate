@@ -1,6 +1,6 @@
 // 프롬프트·답 정리 단위 테스트 (빠름, 외부 호출 없음)
 globalThis.__EDITION__ = { name: 'test', defaults: {} };
-const { buildPrompt, tidyWordAnswer } = await import('../core/prompts.js');
+const { buildPrompt, tidyWordAnswer, mostlyTarget, wrongLanguage } = await import('../core/prompts.js');
 const { DEFAULTS, fallbackOf, onlyTargetScript } = await import('../core/settings.js');
 
 let failed = 0;
@@ -58,6 +58,24 @@ check('fallback chosen: pure target-script word goes to the fallback', user('wor
 check('latin target without fallback: no condition', user('word', 'bank', { targetLang: 'en', fallbackLang: 'none' }).endsWith('\nAnswer in: English'));
 check('latin target with fallback: the model decides', user('word', 'bank', { targetLang: 'en', fallbackLang: 'ko' }).endsWith('\nAnswer in: English (if the word itself is already English, answer in Korean instead)')
   && user('text', 'a b', { targetLang: 'en', fallbackLang: 'ko' }).endsWith('<target_language>English (if the text is already English, translate it into Korean instead)</target_language>'));
+
+// 이미 상당 부분이 결과 언어인 섞인 글: 문맥 없이 보내고, 답이 다른 언어로 뒤집혔는지 검사
+const KO = { targetLang: 'ko', fallbackLang: 'none', showAlternatives: true };
+const mixedText = 'How AI Text Watermarking Works의 설명처럼, 이 방식은 편향된 동전을 여러 번 던지는 것과 유사함\nLLM은 다음 토큰을 선택함';
+const mixedReq = { mode: 'text', text: mixedText, context: '앞 문장. ⟦How AI Text Watermarking Works의 설명처럼⟧', title: 't' };
+check('mostlyTarget: mostly korean with english phrases', mostlyTarget(mixedReq, KO));
+check('mostlyTarget: english sentence with one korean word is not', !mostlyTarget({ mode: 'text', text: 'The 김치 at this restaurant is surprisingly good.' }, KO));
+check('mostlyTarget: pure english / pure korean / word mode / latin target are not',
+  !mostlyTarget({ mode: 'text', text: 'river bank' }, KO) && !mostlyTarget({ mode: 'text', text: '한국어 문장' }, KO)
+  && !mostlyTarget({ mode: 'word', text: 'API를' }, KO) && !mostlyTarget({ mode: 'text', text: mixedText }, { ...KO, targetLang: 'en' }));
+check('mostly-target text: context is dropped, prompt otherwise the same', !buildPrompt(mixedReq, KO).user.includes('<context>')
+  && buildPrompt(mixedReq, KO).user === `<text>${mixedText}</text>\n<target_language>Korean</target_language>`
+  && buildPrompt(mixedReq, KO).system === buildPrompt({ mode: 'text', text: 'x' }, KO).system);
+check('other text keeps its context', buildPrompt({ mode: 'text', text: 'river bank', context: 'on the ⟦river bank⟧ today' }, KO).user.startsWith('<context>'));
+check('wrongLanguage: answer flipped to english', wrongLanguage(mixedReq, KO, 'As explained in "How AI Text Watermarking Works," this method is similar to tossing a biased coin.'));
+check('wrongLanguage: half flipped (first sentence english)', wrongLanguage(mixedReq, KO, 'As explained in How AI Text Watermarking Works, this method is similar to tossing a biased coin many times to statistically determine whether it is biased.\nLLM은 다음 토큰을 선택함'));
+check('wrongLanguage: korean answer keeping the english title is fine', !wrongLanguage(mixedReq, KO, '이 방식은 "How AI Text Watermarking Works"의 설명처럼, 편향된 동전을 여러 번 던지는 것과 비슷함\nLLM은 다음 토큰을 선택함'));
+check('wrongLanguage: never for ordinary requests', !wrongLanguage({ mode: 'text', text: 'React, Vue, Svelte' }, KO, 'React, Vue, Svelte'));
 
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);

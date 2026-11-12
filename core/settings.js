@@ -89,3 +89,16 @@ export function onlyTargetScript(text, lang) {
   }
   return seen && must;
 }
+
+// 글자 가운데 결과 언어 문자의 비율 (0~1). 문자로 알아볼 수 없는 언어이거나 글자가 없으면 null
+export function targetShare(text, lang) {
+  const sc = SCRIPTS[lang];
+  if (!sc) return null;
+  let own = 0, all = 0;
+  for (const ch of text) {
+    if (!LETTER.test(ch)) continue;
+    all++;
+    if (sc.own.test(ch)) own++;
+  }
+  return all ? own / all : null;
+}
